@@ -2,9 +2,11 @@ package com.school.elearning.model;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDateTime;
+
+import com.school.elearning.model.enums.RoleLive;
  
 @Entity @Table(name = "live_messages")
-@NoArgsConstructor @AllArgsConstructor @Data
+@NoArgsConstructor @AllArgsConstructor @Getter @Setter 
 public class LiveMessage {
  
     @Id

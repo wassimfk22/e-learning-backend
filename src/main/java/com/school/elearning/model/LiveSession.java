@@ -7,7 +7,7 @@ import java.time.LocalDateTime;
 import com.school.elearning.model.enums.SessionStatus;
  
 @Entity @Table(name = "live_sessions")
-@NoArgsConstructor @AllArgsConstructor @Data
+@NoArgsConstructor @AllArgsConstructor @Getter @Setter
 public class LiveSession {
  
     @Id

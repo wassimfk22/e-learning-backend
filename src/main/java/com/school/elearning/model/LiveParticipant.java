@@ -1,5 +1,6 @@
 package com.school.elearning.model;
 import com.school.elearning.model.enums.Role;
+import com.school.elearning.model.enums.RoleLive;
 
 import jakarta.persistence.*;
 import lombok.*;
@@ -8,7 +9,7 @@ import lombok.*;
     name = "live_participants",
     uniqueConstraints = @UniqueConstraint(columnNames = {"utilisateur_id", "live_session_id"})
 )
-@Setter @NoArgsConstructor @AllArgsConstructor @Data @Builder
+@NoArgsConstructor @AllArgsConstructor @Getter @Setter @Builder
 public class LiveParticipant {
  
     @Id
@@ -25,7 +26,7 @@ public class LiveParticipant {
  
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private Role role;
+    private RoleLive role;
  
     @Builder.Default
     private boolean micOn = false;

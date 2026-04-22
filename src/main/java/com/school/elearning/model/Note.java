@@ -21,6 +21,6 @@ public class Note {
     @ManyToOne @JoinColumn(name = "resultat_id")
     private Resultat resultat;
     
-    @OneToOne @JoinColumn (name = "evaluation_id")
+    @OneToOne(mappedBy = "note")
     private Evaluation evaluation;
 }

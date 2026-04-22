@@ -1,5 +1,7 @@
 package com.school.elearning.model;
 
+import com.school.elearning.model.enums.RoleLive;
+
 import jakarta.persistence.*;
 import lombok.*;
  
@@ -7,7 +9,7 @@ import lombok.*;
     name = "live_permissions",
     uniqueConstraints = @UniqueConstraint(columnNames = {"user_id", "live_session_id"})
 )
-@Data @NoArgsConstructor @AllArgsConstructor @Builder
+@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class LivePermission {
  
     @Id

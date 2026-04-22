@@ -20,7 +20,7 @@ public abstract class Evaluation {
     
     // Chaque evaluation va etre passee par plusieurs etudiant
     @ManyToMany (mappedBy = "evaluations")
-    private Etudiant etudiant;
+    private List <Etudiant> etudiants;
     
     // Chaque evaluation appartient à un seul module
     @ManyToOne @JoinColumn(name = "module_id")

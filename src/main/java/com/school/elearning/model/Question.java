@@ -15,8 +15,9 @@ public class Question {
     @Column(columnDefinition = "TEXT")
     private String enonce;
 
-    @Column(columnDefinition = "TEXT")
-    private String choixPossibles;
+    @ElementCollection
+    @CollectionTable(name = "question_choix", joinColumns = @JoinColumn(name = "question_id"))
+    private List<String> choixPossibles;
 
     @ManyToOne @JoinColumn(name = "examen_id")
     private Examen examen;
