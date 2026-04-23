@@ -18,7 +18,7 @@ public class Annonce {
     @Temporal(TemporalType.TIMESTAMP)
     private Date datePublication;
 
-    @ManyToOne @JoinColumn(name = "moderateur_id")
+    @ManyToOne @JoinColumn(name = "utilisateur_id")
     private Utilisateur auteur;
 
     @OneToMany(mappedBy = "annonce", cascade = CascadeType.ALL)

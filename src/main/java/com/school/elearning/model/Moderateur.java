@@ -13,9 +13,6 @@ public class Moderateur extends Utilisateur {
 	@Enumerated (EnumType.STRING)
 	private TypeModerateur type;
 
-    @OneToMany(mappedBy = "moderateur")
-    private List<Annonce> annonces;
-    
     @OneToMany ( mappedBy = "moderateur" )
     private List <Communaute> communautes;
     

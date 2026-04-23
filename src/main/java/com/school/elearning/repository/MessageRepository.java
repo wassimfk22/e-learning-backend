@@ -6,6 +6,6 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface MessageRepository extends JpaRepository<Message, Long> {
-    java.util.List<Message> findByCommunauteIdAndEstChatTrue(Long communauteId);
+    java.util.List<Message> findByCommunauteId(Long communauteId);
 
 }

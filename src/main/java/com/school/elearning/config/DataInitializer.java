@@ -5,7 +5,6 @@ import com.school.elearning.model.enums.Role;
 import com.school.elearning.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
@@ -16,39 +15,98 @@ import java.util.Date;
 @RequiredArgsConstructor
 @Slf4j
 public class DataInitializer implements CommandLineRunner {
+
     private final UtilisateurRepository utilisateurRepository;
     private final AdministrateurRepository administrateurRepository;
-    private final PasswordEncoder passwordEncoder;
+    private final EtudiantRepository etudiantRepository;
+    private final ModerateurRepository moderateurRepository;
+    private final EnseignantRepository enseignantRepository;
 
-    @Value("${app.admin.email}") private String adminEmail;
-    @Value("${app.admin.password}") private String adminPassword;
-    @Value("${app.admin.nom}") private String adminNom;
-    @Value("${app.admin.prenom}") private String adminPrenom;
+    private final PasswordEncoder passwordEncoder;
 
     @Override
     public void run(String... args) {
-        if (!utilisateurRepository.existsByEmail(adminEmail)) {
+
+        createAdmin();
+        createEtudiant();
+        createModerateur();
+        createEnseignant();
+    }
+
+    // ================= ADMIN =================
+    private void createAdmin() {
+        String email = "admin@gmail.com";
+
+        if (!utilisateurRepository.existsByEmail(email)) {
             Administrateur admin = new Administrateur();
-            admin.setNom(adminNom);
-            admin.setPrenom(adminPrenom);
-            admin.setEmail(adminEmail);
-            admin.setMotDePasse(passwordEncoder.encode(adminPassword));
+            admin.setNom("Admin");
+            admin.setPrenom("System");
+            admin.setEmail(email);
+            admin.setMotDePasse(passwordEncoder.encode("123456"));
             admin.setRole(Role.ADMIN);
 
-            administrateurRepository.save(admin);
-
-            // Create BoiteReception for admin
             BoiteReception boite = new BoiteReception();
             boite.setDateCreation(new Date());
             boite.setUtilisateur(admin);
             admin.setBoiteReception(boite);
+
             administrateurRepository.save(admin);
 
-            log.info("=== Admin créé avec succès ===");
-            log.info("Email: {}", adminEmail);
-            log.info("Mot de passe: {}", adminPassword);
-        } else {
-            log.info("=== Admin existe déjà ===");
+            log.info("=== ADMIN créé ===");
+        }
+    }
+
+    // ================= ETUDIANT =================
+    private void createEtudiant() {
+        String email = "etudiant@gmail.com";
+
+        if (!utilisateurRepository.existsByEmail(email)) {
+            Etudiant e = new Etudiant();
+            e.setNom("Etudiant");
+            e.setPrenom("Test");
+            e.setEmail(email);
+            e.setMotDePasse(passwordEncoder.encode("123456"));
+            e.setRole(Role.ETUDIANT);
+
+            etudiantRepository.save(e);
+
+            log.info("=== ETUDIANT créé ===");
+        }
+    }
+
+    // ================= MODERATEUR =================
+    private void createModerateur() {
+        String email = "moderateur@gmail.com";
+
+        if (!utilisateurRepository.existsByEmail(email)) {
+            Moderateur m = new Moderateur();
+            m.setNom("Moderateur");
+            m.setPrenom("Test");
+            m.setEmail(email);
+            m.setMotDePasse(passwordEncoder.encode("123456"));
+            m.setRole(Role.MODERATEUR);
+
+            moderateurRepository.save(m);
+
+            log.info("=== MODERATEUR créé ===");
+        }
+    }
+
+    // ================= ENSEIGNANT =================
+    private void createEnseignant() {
+        String email = "enseignant@gmail.com";
+
+        if (!utilisateurRepository.existsByEmail(email)) {
+            Enseignant e = new Enseignant();
+            e.setNom("Prof");
+            e.setPrenom("Test");
+            e.setEmail(email);
+            e.setMotDePasse(passwordEncoder.encode("123456"));
+            e.setRole(Role.ENSEIGNANT);
+
+            enseignantRepository.save(e);
+
+            log.info("=== ENSEIGNANT créé ===");
         }
     }
 }

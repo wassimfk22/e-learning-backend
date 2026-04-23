@@ -37,6 +37,8 @@ public class AdminController {
         m.setTelephone(request.getTelephone());
         return ResponseEntity.ok(moderateurRepository.save(m));
     }
+    
+    // SERVICE ENSEIGNANT
 
     @DeleteMapping("/utilisateurs/{id}")
     public ResponseEntity<Void> deleteUser(@PathVariable Long id) {

@@ -14,15 +14,15 @@ import java.util.List;
 public class NotificationController {
     private final NotificationRepository notificationRepository;
 
-    @GetMapping("/{utilisateurId}")
-    public ResponseEntity<List<Notification>> getAll(@PathVariable Long utilisateurId) {
-        return ResponseEntity.ok(notificationRepository.findByDestinataire_Id(utilisateurId));
-    }
-
-    @GetMapping("/{utilisateurId}/unread")
-    public ResponseEntity<List<Notification>> getUnread(@PathVariable Long utilisateurId) {
-        return ResponseEntity.ok(notificationRepository.findByDestinataire_IdAndEstLueFalse(utilisateurId));
-    }
+//    @GetMapping("/{utilisateurId}")
+//    public ResponseEntity<List<Notification>> getAll(@PathVariable Long utilisateurId) {
+//        return ResponseEntity.ok(notificationRepository.findByDestinataire_Id(utilisateurId));
+//    }
+//
+//    @GetMapping("/{utilisateurId}/unread")
+//    public ResponseEntity<List<Notification>> getUnread(@PathVariable Long utilisateurId) {
+//        return ResponseEntity.ok(notificationRepository.findByDestinataire_IdAndEstLueFalse(utilisateurId));
+//    }
 
     @PutMapping("/{id}/read")
     public ResponseEntity<Notification> markAsRead(@PathVariable Long id) {

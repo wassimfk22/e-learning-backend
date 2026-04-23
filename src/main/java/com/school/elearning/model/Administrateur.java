@@ -5,8 +5,8 @@ import lombok.*;
 import java.util.List;
 
 @Entity @Table(name = "administrateurs")
-@Getter @Setter @NoArgsConstructor @AllArgsConstructor
+@Getter @Setter 
 public class Administrateur extends Utilisateur {
-    @OneToMany(mappedBy = "administrateur")
-    private List<Annonce> annoncesAdmin;
+	
+	
 }

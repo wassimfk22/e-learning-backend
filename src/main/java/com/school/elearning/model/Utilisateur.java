@@ -25,6 +25,9 @@ public abstract class Utilisateur {
     private String photo;
     private String bio;
     private String telephone;
+    
+    @OneToMany(mappedBy = "auteur")
+    private List<Annonce> annonces;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)

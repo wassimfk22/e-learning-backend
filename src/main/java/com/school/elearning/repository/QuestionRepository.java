@@ -6,6 +6,6 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface QuestionRepository extends JpaRepository<Question, Long> {
-    java.util.List<Question> findByEvaluationId(Long evaluationId);
+    java.util.List<Question> findByExamenId(Long examenId);
 
 }
