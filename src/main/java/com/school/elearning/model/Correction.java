@@ -17,12 +17,12 @@ public class Correction {
     @Temporal(TemporalType.TIMESTAMP)
     private Date dateCorrection;
     
-    @OneToOne @JoinColumn (name = "examen_id")
+    @OneToOne(mappedBy = "correction")
     private Examen examen;
 
 //    @OneToOne @JoinColumn(name = "tentative_id")
 //    private Tentative tentative;
 
-//    @ManyToOne @JoinColumn(name = "enseignant_id")
-//    private Enseignant enseignant;
+    @ManyToOne @JoinColumn(name = "enseignant_id")
+    private Enseignant enseignant;
 }

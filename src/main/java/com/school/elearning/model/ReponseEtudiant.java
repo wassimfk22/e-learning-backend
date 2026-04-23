@@ -8,8 +8,14 @@ import lombok.*;
 public class ReponseEtudiant {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+    
+    @Column(columnDefinition = "TEXT")
     private String reponseDonnee;
+    
+    private boolean estCorrecte;
 
-    @OneToOne @JoinColumn(name = "question_id")
+ // 🟠 CORRECTION : Question a @OneToOne @JoinColumn(reponse_id) → elle possède la FK
+    // Donc ici on met mappedBy pour éviter 2 colonnes FK en base
+    @OneToOne(mappedBy = "reponse")
     private Question question;
 }

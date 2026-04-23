@@ -24,8 +24,8 @@ public class CommunauteController {
         return ResponseEntity.ok(communauteRepository.findById(id).orElseThrow(() -> new RuntimeException("Communauté non trouvée")));
     }
 
-    @GetMapping("/{communauteId}/messages")
-    public ResponseEntity<List<Message>> getChat(@PathVariable Long communauteId) {
-        return ResponseEntity.ok(messageService.getHistoriqueChat(communauteId));
-    }
+//    @GetMapping("/{communauteId}/messages")
+//    public ResponseEntity<List<Message>> getChat(@PathVariable Long communauteId) {
+//        return ResponseEntity.ok(messageService.getHistoriqueChat(communauteId));
+//    }
 }

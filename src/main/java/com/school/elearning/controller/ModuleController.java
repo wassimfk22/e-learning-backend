@@ -1,50 +1,73 @@
+// ════════════════════════════════════════════════════
+// ModuleController.java
+// ════════════════════════════════════════════════════
 package com.school.elearning.controller;
-
+ 
 import com.school.elearning.model.Module;
 import com.school.elearning.service.ModuleService;
-import com.school.elearning.repository.ModuleRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
-
 import java.util.List;
-
+import java.util.Map;
+ 
 @RestController
 @RequestMapping("/api/modules")
 @RequiredArgsConstructor
 public class ModuleController {
+ 
     private final ModuleService moduleService;
-    private final ModuleRepository moduleRepository;
-
+ 
+    // GET /api/modules
     @GetMapping
-    public ResponseEntity<List<Module>> getAll() { return ResponseEntity.ok(moduleService.findAll()); }
-
+    public ResponseEntity<List<Module>> getTousModules() {
+        return ResponseEntity.ok(moduleService.getTousModules());
+    }
+ 
+    // GET /api/modules/{id}
     @GetMapping("/{id}")
-    public ResponseEntity<Module> getById(@PathVariable Long id) { return ResponseEntity.ok(moduleService.findById(id)); }
-
+    public ResponseEntity<Module> getModule(@PathVariable Long id) {
+        return ResponseEntity.ok(moduleService.getModuleById(id));
+    }
+ 
+    // GET /api/modules/niveau/{niveauId}
     @GetMapping("/niveau/{niveauId}")
     public ResponseEntity<List<Module>> getByNiveau(@PathVariable Long niveauId) {
-        return ResponseEntity.ok(moduleRepository.findByNiveauId(niveauId));
+        return ResponseEntity.ok(moduleService.getModulesByNiveau(niveauId));
     }
-
-    @GetMapping("/enseignant/{enseignantId}")
-    public ResponseEntity<List<Module>> getByEnseignant(@PathVariable Long enseignantId) {
-        return ResponseEntity.ok(moduleRepository.findByEnseignantId(enseignantId));
+ 
+    // GET /api/modules/mes-modules — Rôle: ENSEIGNANT
+    @GetMapping("/mes-modules")
+    public ResponseEntity<List<Module>> getMesModules(Authentication auth) {
+        return ResponseEntity.ok(moduleService.getMesModules(auth));
     }
-
+ 
+    // POST /api/modules
+    // Body: { "titre": "Spring Boot", "description": "...", "duree": 20, "niveauId": 1 }
+    // Rôle: ENSEIGNANT
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'MODERATEUR', 'ENSEIGNANT')")
-    public ResponseEntity<Module> create(@RequestBody Module module) { return ResponseEntity.ok(moduleService.save(module)); }
-
-    @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MODERATEUR', 'ENSEIGNANT')")
-    public ResponseEntity<Module> update(@PathVariable Long id, @RequestBody Module module) {
-        module.setId(id);
-        return ResponseEntity.ok(moduleService.save(module));
+    public ResponseEntity<Module> creer(@RequestBody Map<String, Object> body, Authentication auth) {
+        String titre = (String) body.get("titre");
+        String description = (String) body.get("description");
+        int duree = Integer.parseInt(body.get("duree").toString());
+        Long niveauId = Long.valueOf(body.get("niveauId").toString());
+        return ResponseEntity.ok(moduleService.creerModule(titre, description, duree, niveauId, auth));
     }
-
-    @DeleteMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MODERATEUR')")
-    public ResponseEntity<Void> delete(@PathVariable Long id) { moduleService.delete(id); return ResponseEntity.noContent().build(); }
+ 
+    // PUT /api/modules/{id}
+    // Body: { "titre": "...", "description": "...", "duree": 25 }
+    // Rôle: ENSEIGNANT
+    @PutMapping("/{id}")
+    public ResponseEntity<Module> modifier(@PathVariable Long id,
+                                            @RequestBody Map<String, Object> body,
+                                            Authentication auth) {
+        String titre = (String) body.get("titre");
+        String description = (String) body.get("description");
+        int duree = Integer.parseInt(body.get("duree").toString());
+        return ResponseEntity.ok(moduleService.modifierModule(id, titre, description, duree, auth));
+    }
+    
+    
+    
 }

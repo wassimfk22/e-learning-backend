@@ -33,48 +33,4 @@ public class AuthService {
         return new AuthResponse(token, user.getEmail(), user.getRole().name(), user.getNom(), user.getPrenom());
     }
 
-    public AuthResponse register(RegisterRequest request) {
-        if (utilisateurRepository.existsByEmail(request.getEmail())) {
-            throw new RuntimeException("Email déjà utilisé");
-        }
-
-        Utilisateur user;
-        switch (request.getRole()) {
-            case ETUDIANT -> {
-                Etudiant e = new Etudiant();
-                e.setDateInscription(new Date());
-                user = e;
-            }
-            case ENSEIGNANT -> {
-                Enseignant e = new Enseignant();
-                e.setSpecialite(request.getSpecialite());
-                user = e;
-            }
-            case MODERATEUR -> {
-                user = new Moderateur();
-            }
-            default -> throw new RuntimeException("Rôle non autorisé pour l'inscription");
-        }
-
-        user.setNom(request.getNom());
-        user.setPrenom(request.getPrenom());
-        user.setEmail(request.getEmail());
-        user.setMotDePasse(passwordEncoder.encode(request.getMotDePasse()));
-        user.setTelephone(request.getTelephone());
-        user.setRole(request.getRole());
-
-        utilisateurRepository.save(user);
-
-        // Auto-create BoiteReception
-        BoiteReception boite = new BoiteReception();
-        boite.setDateCreation(new Date());
-        boite.setUtilisateur(user);
-        user.setBoiteReception(boite);
-        utilisateurRepository.save(user);
-
-        Authentication auth = authenticationManager.authenticate(
-            new UsernamePasswordAuthenticationToken(request.getEmail(), request.getMotDePasse()));
-        String token = jwtTokenProvider.generateToken(auth);
-        return new AuthResponse(token, user.getEmail(), user.getRole().name(), user.getNom(), user.getPrenom());
-    }
 }

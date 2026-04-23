@@ -1,27 +1,45 @@
+// ════════════════════════════════════════════════════
+// ProgressionController.java
+// ════════════════════════════════════════════════════
 package com.school.elearning.controller;
-
-import com.school.elearning.model.*;
+ 
+import com.school.elearning.model.ProgressionModule;
 import com.school.elearning.service.ProgressionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
-
 import java.util.List;
-
+import java.util.Map;
+ 
 @RestController
 @RequestMapping("/api/progression")
 @RequiredArgsConstructor
 public class ProgressionController {
+ 
     private final ProgressionService progressionService;
-
-    @GetMapping("/modules/{etudiantId}")
-    public ResponseEntity<List<ProgressionModule>> getProgressions(@PathVariable Long etudiantId) {
-        return ResponseEntity.ok(progressionService.getProgressionsEtudiant(etudiantId));
+ 
+    // GET /api/progression/ma-progression — Rôle: ETUDIANT
+    @GetMapping("/ma-progression")
+    public ResponseEntity<List<ProgressionModule>> getMaProgression(Authentication auth) {
+        return ResponseEntity.ok(progressionService.getMaProgression(auth));
     }
-
-    @GetMapping("/enregistrements/{etudiantId}")
-    public ResponseEntity<List<Enregistrement>> getEnregistrements(@PathVariable Long etudiantId) {
-        return ResponseEntity.ok(progressionService.getEnregistrementsEtudiant(etudiantId));
+ 
+    // POST /api/progression/inscrire/{moduleId} — Rôle: ETUDIANT
+    @PostMapping("/inscrire/{moduleId}")
+    public ResponseEntity<ProgressionModule> inscrire(@PathVariable Long moduleId,
+                                                       Authentication auth) {
+        return ResponseEntity.ok(progressionService.inscrireModule(moduleId, auth));
+    }
+ 
+    // PATCH /api/progression/{id}/avancement
+    // Body: { "pourcentage": 45.5 }
+    // Rôle: ETUDIANT
+    @PatchMapping("/{id}/avancement")
+    public ResponseEntity<ProgressionModule> mettreAJour(@PathVariable Long id,
+                                                           @RequestBody Map<String, Object> body,
+                                                           Authentication auth) {
+        float pourcentage = Float.parseFloat(body.get("pourcentage").toString());
+        return ResponseEntity.ok(progressionService.mettreAJour(id, pourcentage, auth));
     }
 }

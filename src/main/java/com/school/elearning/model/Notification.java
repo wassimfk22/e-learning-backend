@@ -16,6 +16,9 @@ public class Notification {
 
     @Temporal(TemporalType.TIMESTAMP)
     private Date dateEnvoi;
+    
+    @Column ( nullable =  false )
+    private boolean EstLue;
 
     @ManyToOne @JoinColumn(name = "annonce_id")
     private Annonce annonce;
