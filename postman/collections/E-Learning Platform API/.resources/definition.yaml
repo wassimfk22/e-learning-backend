@@ -1,0 +1,8 @@
+$kind: collection
+name: 'E-Learning Platform API'
+description: 'API collection for the E-Learning Platform built with Spring Boot. Base URL: http://localhost:8080'
+variables:
+  - key: baseUrl
+    value: 'http://localhost:8080'
+  - key: token
+    value: ''

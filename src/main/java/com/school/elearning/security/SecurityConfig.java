@@ -1,9 +1,7 @@
 package com.school.elearning.security;
 
 import lombok.RequiredArgsConstructor;
-
 import java.util.List;
-
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -17,43 +15,66 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
 @RequiredArgsConstructor
 public class SecurityConfig {
+
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-        http.csrf(csrf -> csrf.disable())
-            .cors(cors -> {}) // 🔥 AJOUTE ÇA
+        http
+            .csrf(csrf -> csrf.disable())
+            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
+
+                // ── Auth publique ──────────────────────────────────────
                 .requestMatchers("/api/auth/**").permitAll()
-                .requestMatchers(HttpMethod.GET, "/api/cours/**", "/api/modules/**", "/api/niveaux/**").authenticated()
+
+                // ── Admin : CRUD complet tous utilisateurs ─────────────
+                // Seul l'ADMIN peut accéder à /api/admin/**
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
+
+                // ── Modération : CRUD étudiants ────────────────────────
+                // ADMIN + MODERATEUR peuvent accéder à /api/moderation/**
                 .requestMatchers("/api/moderation/**").hasAnyRole("ADMIN", "MODERATEUR")
+
+                // ── Lecture publique (authentifié) ─────────────────────
+                .requestMatchers(HttpMethod.GET,
+                    "/api/cours/**",
+                    "/api/modules/**",
+                    "/api/niveaux/**",
+                    "/api/annonces/**"
+                ).authenticated()
+
+                // ── Tout le reste : authentifié ────────────────────────
                 .anyRequest().authenticated()
             )
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
-    
-    @Bean
-    public org.springframework.web.cors.CorsConfigurationSource corsConfigurationSource() {
-        org.springframework.web.cors.CorsConfiguration configuration = new org.springframework.web.cors.CorsConfiguration();
 
-        configuration.setAllowedOrigins(List.of("http://192.168.11.185:8081")); // 🔥 ton front
-        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
+        configuration.setAllowedOrigins(List.of(
+            "http://192.168.11.185:8081",
+            "http://localhost:8081",
+            "http://localhost:3000"
+        ));
+        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);
 
-        org.springframework.web.cors.UrlBasedCorsConfigurationSource source =
-                new org.springframework.web.cors.UrlBasedCorsConfigurationSource();
-
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;
     }

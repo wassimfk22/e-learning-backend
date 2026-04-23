@@ -6,7 +6,12 @@ import lombok.*;
 import java.util.List;
 
 @Entity
-@Table(name = "utilisateurs")
+@Table(
+	    name = "utilisateurs",
+	    uniqueConstraints = {
+	        @UniqueConstraint(columnNames = {"email", "telephone"})
+	    }
+	)
 @Inheritance(strategy = InheritanceType.JOINED)
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor
 public abstract class Utilisateur {
@@ -24,6 +29,7 @@ public abstract class Utilisateur {
 
     private String photo;
     private String bio;
+    @Column(unique = true, nullable = false)
     private String telephone;
     
     @OneToMany(mappedBy = "auteur")

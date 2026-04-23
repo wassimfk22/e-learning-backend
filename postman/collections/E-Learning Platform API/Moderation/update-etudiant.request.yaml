@@ -1,0 +1,28 @@
+$kind: http-request
+name: 'Update Etudiant'
+method: PUT
+url: '{{baseUrl}}/api/moderation/etudiants/:id'
+order: 4000
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{token}}'
+pathVariables:
+  - key: id
+    value: '1'
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "nom": "Ali",
+      "prenom": "Sara",
+      "email": "sara@school.com",
+      "motDePasse": "",
+      "telephone": "0600000099",
+      "photo": "",
+      "bio": "Updated bio"
+    }

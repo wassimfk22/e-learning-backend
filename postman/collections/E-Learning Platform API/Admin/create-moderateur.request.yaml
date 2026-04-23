@@ -1,0 +1,23 @@
+$kind: http-request
+name: 'Create Moderateur'
+method: POST
+url: '{{baseUrl}}/api/admin/moderateurs'
+order: 2000
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{token}}'
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "nom": "Dupont",
+      "prenom": "Jean",
+      "email": "jean@school.com",
+      "motDePasse": "Pass@123",
+      "telephone": "0600000001"
+    }

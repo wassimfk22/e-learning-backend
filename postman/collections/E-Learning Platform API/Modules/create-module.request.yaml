@@ -1,0 +1,22 @@
+$kind: http-request
+name: 'Create Module'
+method: POST
+url: '{{baseUrl}}/api/modules'
+order: 5000
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{token}}'
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "titre": "Spring Boot",
+      "description": "Introduction à Spring Boot",
+      "duree": 20,
+      "niveauId": 1
+    }

@@ -1,0 +1,13 @@
+$kind: http-request
+name: 'Get Niveau'
+method: GET
+url: '{{baseUrl}}/api/niveaux/:id'
+order: 2000
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{token}}'
+pathVariables:
+  - key: id
+    value: '1'

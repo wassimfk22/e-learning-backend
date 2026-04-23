@@ -1,0 +1,13 @@
+$kind: http-request
+name: 'Get Résultats By Etudiant'
+method: GET
+url: '{{baseUrl}}/api/resultats/etudiant/:etudiantId'
+order: 1000
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{token}}'
+pathVariables:
+  - key: etudiantId
+    value: '1'

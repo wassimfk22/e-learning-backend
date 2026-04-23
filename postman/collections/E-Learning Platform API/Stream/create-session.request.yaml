@@ -1,0 +1,22 @@
+$kind: http-request
+name: 'Create Session'
+method: POST
+url: '{{baseUrl}}/api/stream/sessions'
+order: 1000
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{token}}'
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "titre": "Cours Java Live",
+      "description": "Session en direct sur Java",
+      "debut": "2025-06-01T10:00:00",
+      "fin": "2025-06-01T12:00:00"
+    }
