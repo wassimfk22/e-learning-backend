@@ -1,28 +1,35 @@
 package com.school.elearning.model;
 
+import jakarta.persistence.*;
+import lombok.*;
 import java.time.LocalDateTime;
-import java.util.List;
 
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToMany;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.OneToMany;
-
+@Entity
+@Table(name = "messages_boite")
+@Getter @Setter @NoArgsConstructor @AllArgsConstructor
 public class MessageBoite {
 
-	@Id @GeneratedValue (strategy = GenerationType.IDENTITY)
-	private Long id;
-	private String contenu;
-	private LocalDateTime dateEnvoi;
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
 
-	@ManyToOne
+    @Column(columnDefinition = "TEXT")
+    private String contenu;
+
+    private LocalDateTime dateEnvoi;
+
+    @ManyToOne
     @JoinColumn(name = "expediteur_id")
-	private Utilisateur expediteur;
-	
-	@ManyToOne @JoinColumn (name = "boiteReception_id")
+    private Utilisateur expediteur;
+
+    @ManyToOne
+    @JoinColumn(name = "boite_reception_id")
     private BoiteReception boiteReception;
 
+    @PrePersist
+    public void prePersist() {
+        if (this.dateEnvoi == null) {
+            this.dateEnvoi = LocalDateTime.now();
+        }
+    }
 }
