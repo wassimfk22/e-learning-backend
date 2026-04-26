@@ -44,6 +44,7 @@ public class DataInitializer implements CommandLineRunner {
             admin.setEmail(email);
             admin.setMotDePasse(passwordEncoder.encode("123456"));
             admin.setRole(Role.ADMIN);
+            admin.setTelephone("0799087533");
 
             BoiteReception boite = new BoiteReception();
             boite.setDateCreation(new Date());
@@ -67,6 +68,7 @@ public class DataInitializer implements CommandLineRunner {
             e.setEmail(email);
             e.setMotDePasse(passwordEncoder.encode("123456"));
             e.setRole(Role.ETUDIANT);
+            e.setTelephone("0790992677");
 
             etudiantRepository.save(e);
 
@@ -85,6 +87,7 @@ public class DataInitializer implements CommandLineRunner {
             m.setEmail(email);
             m.setMotDePasse(passwordEncoder.encode("123456"));
             m.setRole(Role.MODERATEUR);
+            m.setTelephone("0763609443");
 
             moderateurRepository.save(m);
 
@@ -103,6 +106,7 @@ public class DataInitializer implements CommandLineRunner {
             e.setEmail(email);
             e.setMotDePasse(passwordEncoder.encode("123456"));
             e.setRole(Role.ENSEIGNANT);
+            e.setTelephone("0683109947");
 
             enseignantRepository.save(e);
 

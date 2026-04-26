@@ -12,7 +12,6 @@ public class EnseignantRequest {
     private String email;
     private String motDePasse;
     private String telephone;
-    private String photo;
     private String bio;
     private String specialite;   // champ spécifique Enseignant
 }

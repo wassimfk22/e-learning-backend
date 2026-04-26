@@ -66,7 +66,6 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOrigins(List.of(
-            "http://192.168.11.185:8081",
             "http://localhost:8081",
             "http://localhost:3000"
         ));

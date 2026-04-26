@@ -13,6 +13,5 @@ public class EtudiantRequest {
     private String email;
     private String motDePasse;   // nullable en modification
     private String telephone;
-    private String photo;
     private String bio;
 }

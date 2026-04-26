@@ -13,7 +13,6 @@ public class ModerateurRequest {
     private String email;
     private String motDePasse;
     private String telephone;
-    private String photo;
     private String bio;
     private TypeModerateur type;  // INGENIEURIE ou MANAGEMENT
 }

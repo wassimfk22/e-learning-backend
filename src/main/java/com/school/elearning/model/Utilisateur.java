@@ -5,6 +5,9 @@ import jakarta.persistence.*;
 import lombok.*;
 import java.util.List;
 
+import org.hibernate.annotations.ColumnDefault;
+import org.springframework.boot.context.properties.bind.DefaultValue;
+
 @Entity
 @Table(
 	    name = "utilisateurs",
@@ -21,13 +24,14 @@ public abstract class Utilisateur {
     private String nom;
     private String prenom;
 
-    @Column(unique = true, nullable = false)
+    @Column (unique = true, nullable = false)
     private String email;
 
     @Column(nullable = false)
     private String motDePasse;
 
     private String photo;
+    
     private String bio;
     @Column(unique = true, nullable = false)
     private String telephone;
