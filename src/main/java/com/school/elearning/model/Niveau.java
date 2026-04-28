@@ -9,7 +9,10 @@ import java.util.List;
 public class Niveau {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    private String nom;
+    
+    @Column ( nullable = false, unique = true )
+    private String nom; 
+    
     private String filiere;
     private String annee;
 

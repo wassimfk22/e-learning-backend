@@ -6,4 +6,7 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface NiveauRepository extends JpaRepository<Niveau, Long> {
+	
+	boolean existsByNom ( String nom );
+	
 }

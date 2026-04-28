@@ -27,6 +27,7 @@ public class NiveauService {
  
     @Transactional
     public Niveau creerNiveau(String nom, String filiere, String annee) {
+    	verifierNiveauUnique(nom);
         Niveau niveau = new Niveau();
         niveau.setNom(nom);
         niveau.setFiliere(filiere);
@@ -36,6 +37,7 @@ public class NiveauService {
  
     @Transactional
     public Niveau modifierNiveau(Long id, String nom, String filiere, String annee) {
+    	verifierNiveauUnique(nom);
         Niveau niveau = getNiveauById(id);
         niveau.setNom(nom);
         niveau.setFiliere(filiere);
@@ -47,4 +49,11 @@ public class NiveauService {
     public void supprimerNiveau(Long id) {
         niveauRepository.deleteById(id);
     }
+    
+    private void verifierNiveauUnique(String nom) {
+        if (niveauRepository.existsByNom(nom)) {
+        	throw new RuntimeException("Niveau existe déjà : " + nom);	
+        }
+    }
+    
 }

@@ -53,6 +53,10 @@ public class SecurityConfig {
                     "/api/niveaux/**",
                     "/api/annonces/**"
                 ).authenticated()
+                
+                .requestMatchers(HttpMethod.POST, "/api/niveaux/**").hasAnyRole("ADMIN", "MODERATEUR")
+                .requestMatchers(HttpMethod.PUT, "/api/niveaux/**").hasAnyRole("ADMIN", "MODERATEUR")
+                .requestMatchers(HttpMethod.DELETE, "/api/niveaux/**").hasAnyRole("ADMIN", "MODERATEUR")
 
                 // ── Tout le reste : authentifié ────────────────────────
                 .anyRequest().authenticated()
