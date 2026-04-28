@@ -35,16 +35,16 @@ public class DataInitializer implements CommandLineRunner {
 
     // ================= ADMIN =================
     private void createAdmin() {
-        String email = "admin@gmail.com";
+        String email = "admin@schoool.com";
 
         if (!utilisateurRepository.existsByEmail(email)) {
             Administrateur admin = new Administrateur();
             admin.setNom("Admin");
             admin.setPrenom("System");
             admin.setEmail(email);
-            admin.setMotDePasse(passwordEncoder.encode("123456"));
+            admin.setMotDePasse(passwordEncoder.encode("123456789"));
             admin.setRole(Role.ADMIN);
-            admin.setTelephone("0799087533");
+            admin.setTelephone("07 89 05 39 43");
 
             BoiteReception boite = new BoiteReception();
             boite.setDateCreation(new Date());
