@@ -11,5 +11,6 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface ModuleRepository extends JpaRepository<Module, Long> {
     List<Module> findByNiveau(Niveau niveau);
+    boolean existsByTitre (String titre);
     List<Module> findByEnseignant(Enseignant enseignant);
 }

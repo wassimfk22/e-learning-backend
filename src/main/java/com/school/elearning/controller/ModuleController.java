@@ -1,73 +1,105 @@
-// ════════════════════════════════════════════════════
-// ModuleController.java
-// ════════════════════════════════════════════════════
 package com.school.elearning.controller;
- 
-import com.school.elearning.model.Module;
+
+import com.school.elearning.dto.ModuleRequest;
+import com.school.elearning.dto.ModuleResponse;
 import com.school.elearning.service.ModuleService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+
 import java.util.List;
-import java.util.Map;
- 
+
 @RestController
 @RequestMapping("/api/modules")
 @RequiredArgsConstructor
 public class ModuleController {
- 
+
     private final ModuleService moduleService;
- 
-    // GET /api/modules
+
+    // ── GET ALL ─────────────────────────────────────────────────
+    // Accès : tous les authentifiés (SecurityConfig)
     @GetMapping
-    public ResponseEntity<List<Module>> getTousModules() {
+    public ResponseEntity<List<ModuleResponse>> getTousModules() {
         return ResponseEntity.ok(moduleService.getTousModules());
     }
- 
-    // GET /api/modules/{id}
+
+    // ── GET ONE ─────────────────────────────────────────────────
     @GetMapping("/{id}")
-    public ResponseEntity<Module> getModule(@PathVariable Long id) {
+    public ResponseEntity<ModuleResponse> getModule(@PathVariable Long id) {
         return ResponseEntity.ok(moduleService.getModuleById(id));
     }
- 
-    // GET /api/modules/niveau/{niveauId}
+
+    // ── GET BY NIVEAU ────────────────────────────────────────────
     @GetMapping("/niveau/{niveauId}")
-    public ResponseEntity<List<Module>> getByNiveau(@PathVariable Long niveauId) {
+    public ResponseEntity<List<ModuleResponse>> getByNiveau(@PathVariable Long niveauId) {
         return ResponseEntity.ok(moduleService.getModulesByNiveau(niveauId));
     }
- 
-    // GET /api/modules/mes-modules — Rôle: ENSEIGNANT
+    
+    // ── GET BY ENSEIGNANT ────────────────────────────────────────────
+    @GetMapping("/enseignant/{enseignantId}")
+    public ResponseEntity<List<ModuleResponse>> getByEnseignant(@PathVariable Long enseignantId) {
+    	return ResponseEntity.ok(moduleService.getModulesByEnseignant(enseignantId));
+    }
+    
+    // ── MES MODULES ──────────────────────────────────────────────
+    // Accès : ENSEIGNANT uniquement (SecurityConfig)
+    // L'enseignant connecté voit uniquement ses modules
     @GetMapping("/mes-modules")
-    public ResponseEntity<List<Module>> getMesModules(Authentication auth) {
+    public ResponseEntity<List<ModuleResponse>> getMesModules(Authentication auth) {
         return ResponseEntity.ok(moduleService.getMesModules(auth));
     }
- 
-    // POST /api/modules
-    // Body: { "titre": "Spring Boot", "description": "...", "duree": 20, "niveauId": 1 }
-    // Rôle: ENSEIGNANT
+
+    // ── CREATE ───────────────────────────────────────────────────
+    // Accès : MODERATEUR + ADMIN (SecurityConfig)
+    // Body (tous requis) :
+    // {
+    //   "titre": "Programmation Java",
+    //   "description": "Introduction à Java et Spring Boot",
+    //   "duree": "30h",
+    //   "niveauId": 1,
+    //   "enseignantId": 2
+    // }
     @PostMapping
-    public ResponseEntity<Module> creer(@RequestBody Map<String, Object> body, Authentication auth) {
-        String titre = (String) body.get("titre");
-        String description = (String) body.get("description");
-        int duree = Integer.parseInt(body.get("duree").toString());
-        Long niveauId = Long.valueOf(body.get("niveauId").toString());
-        return ResponseEntity.ok(moduleService.creerModule(titre, description, duree, niveauId, auth));
+    public ResponseEntity<ModuleResponse> creer(@RequestBody ModuleRequest request) {
+        return ResponseEntity.ok(moduleService.creerModule(request));
     }
- 
-    // PUT /api/modules/{id}
-    // Body: { "titre": "...", "description": "...", "duree": 25 }
-    // Rôle: ENSEIGNANT
+
+    // ── UPDATE COMPLET — PUT ─────────────────────────────────────
+    // Accès : MODERATEUR + ADMIN (SecurityConfig)
+    // Remplace TOUT l'objet → tous les champs obligatoires
+    // Body :
+    // {
+    //   "titre": "Java Avancé",
+    //   "description": "Design Patterns",
+    //   "duree": "40h",
+    //   "niveauId": 1,
+    //   "enseignantId": 2
+    // }
     @PutMapping("/{id}")
-    public ResponseEntity<Module> modifier(@PathVariable Long id,
-                                            @RequestBody Map<String, Object> body,
-                                            Authentication auth) {
-        String titre = (String) body.get("titre");
-        String description = (String) body.get("description");
-        int duree = Integer.parseInt(body.get("duree").toString());
-        return ResponseEntity.ok(moduleService.modifierModule(id, titre, description, duree, auth));
+    public ResponseEntity<ModuleResponse> modifier(@PathVariable Long id,
+                                                    @RequestBody ModuleRequest request) {
+        return ResponseEntity.ok(moduleService.modifierModule(id, request));
     }
-    
-    
-    
+
+    // ── UPDATE PARTIEL — PATCH ───────────────────────────────────
+    // Accès : MODERATEUR + ADMIN (SecurityConfig)
+    // Modifie UNIQUEMENT les champs présents dans le body
+    // Exemples valides :
+    //   { "titre": "Nouveau titre" }                        → modifie seulement le titre
+    //   { "duree": "50h", "niveauId": 2 }                  → modifie durée + niveau
+    //   { "description": "...", "enseignantId": 3 }         → modifie description + enseignant
+    @PatchMapping("/{id}")
+    public ResponseEntity<ModuleResponse> modifierPartiellement(@PathVariable Long id,
+                                                                  @RequestBody ModuleRequest request) {
+        return ResponseEntity.ok(moduleService.modifierModulePartiellement(id, request));
+    }
+
+    // ── DELETE ───────────────────────────────────────────────────
+    // Accès : MODERATEUR + ADMIN (SecurityConfig)
+    @DeleteMapping("/{id}")
+    public ResponseEntity<String> supprimer(@PathVariable Long id) {
+        moduleService.supprimerModule(id);
+        return ResponseEntity.ok("Module supprimé avec succès");
+    }
 }
