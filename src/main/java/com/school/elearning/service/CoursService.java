@@ -12,7 +12,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -26,6 +28,8 @@ public class CoursService {
     private final CoursRepository coursRepository;
     private final ModuleRepository moduleRepository;
     private final EnseignantRepository enseignantRepository;
+    private final FileTextExtractorService fileTextExtractorService;
+    private final AiCoursGeneratorService aiCoursGeneratorService;
 
     // ───────────────────────────────────────────
     // READ
@@ -40,7 +44,8 @@ public class CoursService {
 
     public CoursResponse getCoursById(Long id) {
         Cours cours = coursRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Cours introuvable : " + id));
+                .orElseThrow(() -> new RuntimeException
+                		("Cours introuvable : " + id));
         return CoursMapper.toResponse(cours);
     }
 
@@ -168,4 +173,50 @@ public class CoursService {
         return enseignantRepository.findById(details.getUtilisateur().getId())
                 .orElseThrow(() -> new RuntimeException("Pas un enseignant"));
     }
+    
+    @Transactional
+    public CoursResponse creerCoursDepuisFichier(String titre, Long moduleId,
+                                                  MultipartFile fichier,
+                                                  Authentication auth) throws IOException {
+        Enseignant enseignant = getEnseignantConnecte(auth);
+        Module module = moduleRepository.findById(moduleId)
+                .orElseThrow(() -> new RuntimeException("Module introuvable"));
+
+        if (!module.getEnseignant().getId().equals(enseignant.getId())) {
+            throw new RuntimeException("Ce module ne vous appartient pas");
+        }
+
+        // 1. Extraire le texte du fichier
+        String texteExtrait = fileTextExtractorService.extraireTexte(fichier);
+
+        if (texteExtrait == null || texteExtrait.isBlank()) {
+            throw new RuntimeException("Le fichier est vide ou illisible");
+        }
+
+        // 2. Envoyer à GPT et récupérer les contenus générés
+        List<AiCoursGeneratorService.AiContentItem> itemsGeneres =
+                aiCoursGeneratorService.genererContenuDepuisTexte(texteExtrait);
+
+        // 3. Créer le cours
+        Cours cours = new Cours();
+        cours.setTitre(titre);
+        cours.setModule(module);
+        cours.setDatePublication(new Date());
+
+        // 4. Construire les contents dans l'ordre généré par GPT
+        List<Content> contents = new ArrayList<>();
+        for (int i = 0; i < itemsGeneres.size(); i++) {
+            AiCoursGeneratorService.AiContentItem item = itemsGeneres.get(i);
+            Content content = new Content();
+            content.setType(item.type());
+            content.setContent(item.content());
+            content.setOrdre(i + 1);
+            content.setCours(cours);
+            contents.add(content);
+        }
+
+        cours.setContents(contents);
+        return CoursMapper.toResponse(coursRepository.save(cours));
+    }
+    
 }
