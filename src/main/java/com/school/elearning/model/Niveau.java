@@ -11,7 +11,7 @@ public class Niveau {
     private Long id;
     
     @Column ( nullable = false, unique = true )
-    private String nom; 
+    private String nom;
     
     private String filiere;
     private String annee;

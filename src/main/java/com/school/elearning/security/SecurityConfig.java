@@ -78,6 +78,9 @@ public class SecurityConfig {
                 // COURS
                 // ══════════════════════════════════════════════════════
                 .requestMatchers(HttpMethod.GET, "/api/cours/**").authenticated()
+                .requestMatchers(HttpMethod.POST, "/api/cours/**").hasRole("ENSEIGNANT")
+                .requestMatchers(HttpMethod.PUT, "/api/cours/**").hasRole("ENSEIGNANT")
+                .requestMatchers(HttpMethod.DELETE, "/api/cours/**").hasRole("ENSEIGNANT")
 
                 // ══════════════════════════════════════════════════════
                 // ANNONCES
