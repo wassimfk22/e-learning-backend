@@ -3,6 +3,7 @@ package com.school.elearning.security;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Component;
 
@@ -11,6 +12,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Date;
 
 @Component
+@ConfigurationProperties(prefix = "app.jwt")
 public class JwtTokenProvider {
 
     @Value("${app.jwt.secret}")

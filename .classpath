@@ -36,5 +36,15 @@
 			<attribute name="maven.pomderived" value="true"/>
 		</attributes>
 	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/HP/.m2/repository/com/squareup/retrofit2/converter-jackson/2.9.0/converter-jackson-2.9.0.jar" sourcepath="C:/Users/HP/.m2/repository/com/squareup/retrofit2/converter-jackson/2.9.0/converter-jackson-2.9.0-sources.jar">
+		<attributes>
+			<attribute name="maven.pomderived" value="true"/>
+			<attribute name="test" value="true"/>
+			<attribute name="maven.groupId" value="com.squareup.retrofit2"/>
+			<attribute name="maven.artifactId" value="converter-jackson"/>
+			<attribute name="maven.version" value="2.9.0"/>
+			<attribute name="maven.scope" value="runtime"/>
+		</attributes>
+	</classpathentry>
 	<classpathentry kind="output" path="target/classes"/>
 </classpath>
