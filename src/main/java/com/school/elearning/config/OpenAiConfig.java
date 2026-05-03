@@ -33,7 +33,7 @@ public class OpenAiConfig {
     public OpenAiService openAiService() {
         ObjectMapper mapper = OpenAiService.defaultObjectMapper();
      // Dans OpenAiConfig.java
-        OkHttpClient client = OpenAiService.defaultClient(apiKey, Duration.ofSeconds(300));
+        OkHttpClient client = OpenAiService.defaultClient(apiKey, Duration.ofSeconds(600));
 
         // Ici on remplace l'URL par défaut d'OpenAI par ton URL Ollama
         Retrofit retrofit = new Retrofit.Builder()

@@ -1,5 +1,7 @@
 package com.school.elearning.service;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.school.elearning.dto.CoursResponse;
 import com.school.elearning.model.enums.TypeContent;
@@ -55,44 +57,64 @@ public class AiCoursGeneratorService {
 
     private String construirePrompt(String texte) {
         return """
-            Voici le contenu d'un document pédagogique :
+            SOURCE : %s
+            ---
+            MISSION : Résume le texte ci-dessus en 5 points clés.
             
-            %s
-            
-            Génère un cours résumé structuré à partir de ce contenu.
-            Retourne UNIQUEMENT un tableau JSON avec cette structure exacte :
+            RÉPONDS UNIQUEMENT SOUS CE FORMAT JSON :
             [
-              { "type": "TEXT", "content": "Introduction ou titre de section..." },
-              { "type": "TEXT", "content": "Explication du concept..." }
+              {"type": "TEXT", "content": "Met ici l'introduction"},
+              {"type": "TEXT", "content": "Met ici le concept 1"},
+              {"type": "TEXT", "content": "Met ici le concept 2"},
+              {"type": "TEXT", "content": "Met ici le concept 3"},
+              {"type": "TEXT", "content": "Met ici la conclusion"}
             ]
             
-            Règles :
-            - Utilise uniquement le type "TEXT"
-            - Découpe le cours en sections logiques (introduction, concepts clés, résumé)
-            - Chaque section doit être claire, concise et pédagogique
-            - Minimum 5 sections, maximum 15
-            - Réponds UNIQUEMENT avec le tableau JSON, rien d'autre
-            """.formatted(texte.length() > 12000 ? texte.substring(0, 12000) : texte);
+            STRICTEMENT INTERDIT : Ne recopie pas les chiffres scientifiques comme -1.797E308. 
+            Ne mets aucun texte avant ou après le crochet [.
+            """.formatted(texte.length() > 3000 ? texte.substring(0, 3000) : texte);
     }
 
     private List<AiContentItem> parseReponse(String json) {
         try {
-            String nettoye = json.strip()
-                    .replaceAll("^```json", "")
-                    .replaceAll("^```", "")
-                    .replaceAll("```$", "")
-                    .strip();
+            // 1. On configure l'objectMapper pour être indulgent avec les erreurs de l'IA
+            objectMapper.configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+
+            // 2. On affiche la réponse pour debug (Regarde ta console d'IDE !)
+            System.out.println("--- RÉPONSE BRUTE OLLAMA ---");
+            System.out.println(json);
+            System.out.println("----------------------------");
+
+            // 3. On extrait uniquement la partie entre [ et ]
+            int debutTableau = json.indexOf("[");
+            int finTableau = json.lastIndexOf("]");
+
+            if (debutTableau == -1 || finTableau == -1 || finTableau < debutTableau) {
+                throw new RuntimeException("L'IA n'a pas inclus de tableau JSON valide dans sa réponse.");
+            }
+
+            String jsonPur = json.substring(debutTableau, finTableau + 1).trim();
+
+            // 4. On transforme le JSON en liste d'objets
             return objectMapper.readValue(
-                    nettoye,
+                    jsonPur,
                     objectMapper.getTypeFactory().constructCollectionType(List.class, AiContentItem.class)
             );
         } catch (Exception e) {
-            throw new RuntimeException("Erreur parsing réponse GPT : " + e.getMessage());
+            throw new RuntimeException("Erreur lors de l'extraction des données : " + e.getMessage());
         }
     }
 
-    // DTO interne pour parser la réponse GPT
-    public record AiContentItem(TypeContent type, String content) {}
+    // DTO interne ultra-flexible pour encaisser les erreurs de TinyLlama
+    public record AiContentItem(
+        @JsonAlias({"type", "TYPE", "Type"}) 
+        @JsonProperty("type")
+        TypeContent type, 
+
+        @JsonAlias({"content", "CONTENT", "Content", "texte", "text"}) 
+        @JsonProperty("content")
+        String content
+    ) {}
     
     
     
