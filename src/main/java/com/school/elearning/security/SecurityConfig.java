@@ -81,6 +81,14 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/api/cours/**").hasRole("ENSEIGNANT")
                 .requestMatchers(HttpMethod.PUT, "/api/cours/**").hasRole("ENSEIGNANT")
                 .requestMatchers(HttpMethod.DELETE, "/api/cours/**").hasRole("ENSEIGNANT")
+                
+                // ══════════════════════════════════════════════════════
+                // QUIZS
+                // ══════════════════════════════════════════════════════
+                
+                .requestMatchers(HttpMethod.POST,   "/api/quiz/**").hasRole("ENSEIGNANT")
+                .requestMatchers(HttpMethod.GET,    "/api/quiz/**").hasRole("ENSEIGNANT")
+                .requestMatchers(HttpMethod.DELETE, "/api/quiz/**").hasRole("ENSEIGNANT")
 
                 // ══════════════════════════════════════════════════════
                 // ANNONCES
