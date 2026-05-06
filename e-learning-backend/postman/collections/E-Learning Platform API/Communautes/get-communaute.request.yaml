@@ -1,0 +1,13 @@
+$kind: http-request
+name: 'Get Communauté'
+method: GET
+url: '{{baseUrl}}/api/communautes/:id'
+order: 2000
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{token}}'
+pathVariables:
+  - key: id
+    value: '1'

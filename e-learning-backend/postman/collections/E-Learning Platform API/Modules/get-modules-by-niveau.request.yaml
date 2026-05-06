@@ -1,0 +1,13 @@
+$kind: http-request
+name: 'Get Modules By Niveau'
+method: GET
+url: '{{baseUrl}}/api/modules/niveau/:niveauId'
+order: 3000
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{token}}'
+pathVariables:
+  - key: niveauId
+    value: '1'

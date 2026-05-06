@@ -1,6 +1,10 @@
+<<<<<<< HEAD
 target/
 *.class
 *.jar
 .idea/
 *.iml
 .DS_Store
+=======
+/.metadata/
+>>>>>>> 10993413e4a63c069bb1daa66887beea52aa2ca2

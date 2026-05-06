@@ -1,0 +1,13 @@
+$kind: http-request
+name: 'Get Analytique By Etudiant'
+method: GET
+url: '{{baseUrl}}/api/analytique/etudiant/:etudiantId'
+order: 1000
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{token}}'
+pathVariables:
+  - key: etudiantId
+    value: '1'

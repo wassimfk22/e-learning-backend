@@ -1,0 +1,13 @@
+$kind: http-request
+name: 'Get Cours By Module'
+method: GET
+url: '{{baseUrl}}/api/cours/module/:moduleId'
+order: 3000
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{token}}'
+pathVariables:
+  - key: moduleId
+    value: '1'

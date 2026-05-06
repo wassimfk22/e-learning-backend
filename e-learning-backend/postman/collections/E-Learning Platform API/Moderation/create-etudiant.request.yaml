@@ -1,0 +1,25 @@
+$kind: http-request
+name: 'Create Etudiant'
+method: POST
+url: '{{baseUrl}}/api/moderation/etudiants'
+order: 3000
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{token}}'
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "nom": "Ali",
+      "prenom": "Sara",
+      "email": "sara@school.com",
+      "motDePasse": "pass123",
+      "telephone": "0600000099",
+      "photo": "",
+      "bio": ""
+    }

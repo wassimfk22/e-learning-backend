@@ -1,0 +1,22 @@
+$kind: http-request
+name: 'Update Cours'
+method: PUT
+url: '{{baseUrl}}/api/cours/:id'
+order: 5000
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{token}}'
+pathVariables:
+  - key: id
+    value: '1'
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "titre": "Nouveau titre"
+    }
