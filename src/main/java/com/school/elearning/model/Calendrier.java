@@ -4,6 +4,9 @@ import jakarta.persistence.*;
 import lombok.*;
 import java.util.List;
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 @Entity @Table(name = "calendriers")
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor
 public class Calendrier {

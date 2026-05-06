@@ -3,8 +3,10 @@ package com.school.elearning.service;
 import com.school.elearning.dto.EtudiantRequest;
 import com.school.elearning.dto.UtilisateurResponse;
 import com.school.elearning.model.Etudiant;
+import com.school.elearning.model.Niveau;
 import com.school.elearning.model.enums.Role;
 import com.school.elearning.repository.EtudiantRepository;
+import com.school.elearning.repository.NiveauRepository;
 import com.school.elearning.repository.UtilisateurRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -24,6 +26,7 @@ public class EtudiantService {
     private final UtilisateurRepository utilisateurRepository;
     private final PasswordEncoder passwordEncoder;
     private final FileStorageService fileStorageService;
+    private final NiveauRepository niveauRepository;
 
     // ── GET ALL ────────────────────────────────────────────────────
     public List<UtilisateurResponse> getTousEtudiants() {
@@ -52,6 +55,34 @@ public class EtudiantService {
         etudiant.setBio(request.getBio());
         etudiant.setRole(Role.ETUDIANT);
         etudiant.setDateInscription(new Date());
+        
+        // Affectation du niveau (via la communauté)
+        if (request.getNiveauId() != null) {
+            Niveau niveau = niveauRepository.findById(request.getNiveauId())
+                    .orElseThrow(() -> new RuntimeException("Niveau introuvable"));
+            
+            // On récupère la communauté liée à ce niveau
+            if (niveau.getCommunaute() != null) {
+                etudiant.setCommunaute(niveau.getCommunaute());
+            }
+        }
+
+        return toResponse(etudiantRepository.save(etudiant));
+    }
+    
+    @Transactional
+    public UtilisateurResponse affecterNiveau(Long etudiantId, Long niveauId) {
+        Etudiant etudiant = findEtudiant(etudiantId);
+        
+        Niveau niveau = niveauRepository.findById(niveauId)
+                .orElseThrow(() -> new RuntimeException("Niveau introuvable"));
+
+        // On change la communauté de l'étudiant pour celle du nouveau niveau
+        if (niveau.getCommunaute() != null) {
+            etudiant.setCommunaute(niveau.getCommunaute());
+        } else {
+            throw new RuntimeException("Ce niveau n'a pas encore de communauté associée !");
+        }
 
         return toResponse(etudiantRepository.save(etudiant));
     }
@@ -129,6 +160,13 @@ public class EtudiantService {
         r.setBio(e.getBio());
         r.setPhoto(e.getPhoto());
         r.setRole(e.getRole().name());
+        if (e.getCommunaute() != null) {
+            r.setNomCommunaute(e.getCommunaute().getNom());
+            
+            if (e.getCommunaute().getNiveau() != null) {
+                r.setNomNiveau(e.getCommunaute().getNiveau().getNom());
+            }
+        }
         return r;
     }
 }

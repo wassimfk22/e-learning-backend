@@ -2,6 +2,8 @@ package com.school.elearning.model;
 
 import jakarta.persistence.*;
 import lombok.*;
+
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
@@ -18,5 +20,5 @@ public class BoiteReception {
     private Utilisateur utilisateur;
 
     @OneToMany (mappedBy = "boiteReception") 
-    private List<MessageBoite> messagesBoite;
+    private List<MessageBoite> messagesBoite = new ArrayList<>();
 }

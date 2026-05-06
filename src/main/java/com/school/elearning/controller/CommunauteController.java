@@ -1,31 +1,26 @@
 package com.school.elearning.controller;
 
 import com.school.elearning.model.*;
-import com.school.elearning.service.MessageService;
-import com.school.elearning.repository.CommunauteRepository;
+import com.school.elearning.service.CommunauteService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
 
 @RestController
 @RequestMapping("/api/communautes")
 @RequiredArgsConstructor
 public class CommunauteController {
-    private final CommunauteRepository communauteRepository;
-    private final MessageService messageService;
+    
+    private final CommunauteService communauteService;
 
-    @GetMapping
-    public ResponseEntity<List<Communaute>> getAll() { return ResponseEntity.ok(communauteRepository.findAll()); }
+    // ... tes autres méthodes ...
 
-    @GetMapping("/{id}")
-    public ResponseEntity<Communaute> getById(@PathVariable Long id) {
-        return ResponseEntity.ok(communauteRepository.findById(id).orElseThrow(() -> new RuntimeException("Communauté non trouvée")));
+    @PostMapping("/associer-niveau/{niveauId}")
+    public ResponseEntity<Communaute> creerCommunaute(Authentication auth, @PathVariable Long niveauId) {
+        return ResponseEntity.ok(communauteService.associerANiveau(auth, niveauId));
     }
-
-//    @GetMapping("/{communauteId}/messages")
-//    public ResponseEntity<List<Message>> getChat(@PathVariable Long communauteId) {
-//        return ResponseEntity.ok(messageService.getHistoriqueChat(communauteId));
-//    }
+    
+    
+    
 }

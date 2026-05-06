@@ -82,4 +82,14 @@ public class ModerationController {
         etudiantService.supprimerEtudiant(id);
         return ResponseEntity.ok("Étudiant supprimé avec succès");
     }
+    
+	 // ── AFFECTER NIVEAU ──────────────────────────────────
+	 // PUT /api/moderation/etudiants/{id}/niveau/{niveauId}
+	 @PutMapping("/etudiants/{id}/niveau/{niveauId}")
+	 public ResponseEntity<UtilisateurResponse> affecterNiveau(
+	         @PathVariable Long id,
+	         @PathVariable Long niveauId) {
+	     return ResponseEntity.ok(etudiantService.affecterNiveau(id, niveauId));
+	 }
+    
 }

@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.*;
 import java.util.List;
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
 @Entity @Table(name = "modules")
@@ -20,7 +21,6 @@ public class Module {
     
     // Chaque module appartient à un seul niveau
     @ManyToOne @JoinColumn(name = "niveau_id")
-    @JsonIgnore
     private Niveau niveau;
 
     // Chaque module est affecté à un seul enseignant

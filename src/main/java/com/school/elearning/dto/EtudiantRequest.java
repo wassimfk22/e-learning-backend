@@ -14,4 +14,5 @@ public class EtudiantRequest {
     private String motDePasse;   // nullable en modification
     private String telephone;
     private String bio;
+    private Long niveauId; // ID du niveau à affecter
 }

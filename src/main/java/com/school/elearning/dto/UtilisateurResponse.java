@@ -22,4 +22,7 @@ public class UtilisateurResponse {
     // champs spécifiques (null si non applicable)
     private String specialite;   // Enseignant
     private String type;         // Modérateur
+    private String nomCommunaute;
+    private String nomNiveau;
+    
 }

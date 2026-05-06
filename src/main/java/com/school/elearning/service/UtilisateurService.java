@@ -68,6 +68,8 @@ public class UtilisateurService {
         e.setMotDePasse(passwordEncoder.encode(req.getMotDePasse()));
         e.setTelephone(req.getTelephone()); e.setBio(req.getBio());
         e.setRole(Role.ETUDIANT); e.setDateInscription(new Date());
+        // AUTOMATISATION
+        initialiserBoiteReception(e);
         return toResponse(etudiantRepository.save(e));
     }
 
@@ -86,6 +88,8 @@ public class UtilisateurService {
         en.setMotDePasse(passwordEncoder.encode(req.getMotDePasse()));
         en.setTelephone(req.getTelephone()); en.setBio(req.getBio());
         en.setRole(Role.ENSEIGNANT); en.setSpecialite(req.getSpecialite());
+        // AUTOMATISATION
+        initialiserBoiteReception(en);
         return toResponse(enseignantRepository.save(en));
     }
 
@@ -104,6 +108,8 @@ public class UtilisateurService {
         m.setMotDePasse(passwordEncoder.encode(req.getMotDePasse()));
         m.setTelephone(req.getTelephone()); m.setBio(req.getBio());
         m.setRole(Role.MODERATEUR); m.setType(req.getType());
+        // AUTOMATISATION
+        initialiserBoiteReception(m);
         return toResponse(moderateurRepository.save(m));
     }
 
@@ -228,6 +234,15 @@ public class UtilisateurService {
         if (u instanceof Enseignant en) r.setSpecialite(en.getSpecialite());
         if (u instanceof Moderateur m && m.getType() != null) r.setType(m.getType().name());
         return r;
+    }
+    
+    // À ajouter dans les HELPERS en bas de UtilisateurService.java
+    private void initialiserBoiteReception(Utilisateur u) {
+        BoiteReception boite = new BoiteReception();
+        boite.setDateCreation(new Date()); // On initialise la date ici
+        // Liaison bidirectionnelle
+        boite.setUtilisateur(u);
+        u.setBoiteReception(boite);
     }
     
     
