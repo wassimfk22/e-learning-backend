@@ -1,0 +1,10 @@
+$kind: http-request
+name: 'Get Sessions Actives'
+method: GET
+url: '{{baseUrl}}/api/stream/sessions/actives'
+order: 4000
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{token}}'

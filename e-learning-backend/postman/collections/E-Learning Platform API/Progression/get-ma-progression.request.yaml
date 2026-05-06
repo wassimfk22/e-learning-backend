@@ -1,0 +1,10 @@
+$kind: http-request
+name: 'Get Ma Progression'
+method: GET
+url: '{{baseUrl}}/api/progression/ma-progression'
+order: 1000
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{token}}'

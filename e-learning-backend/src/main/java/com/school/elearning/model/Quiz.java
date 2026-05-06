@@ -1,0 +1,24 @@
+package com.school.elearning.model;
+
+import jakarta.persistence.*;
+import lombok.*;
+import java.util.ArrayList;
+import java.util.List;
+
+@Entity
+@Table(name = "quizzes")
+@Getter @Setter @NoArgsConstructor @AllArgsConstructor
+public class Quiz extends Evaluation {
+
+    private int nombreTentativesMax;
+
+    // Chaque quiz appartient à un cours
+    // Le module est accessible via cours.getModule()
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "cours_id", nullable = false)
+    private Cours cours;
+
+    // Un quiz contient plusieurs questions dédiées (QuestionQuiz ≠ Question d'Examen)
+    @OneToMany(mappedBy = "quiz", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<QuestionQuiz> questions = new ArrayList<>();
+}

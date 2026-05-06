@@ -1,0 +1,10 @@
+$kind: http-request
+name: 'Get Mes Sessions'
+method: GET
+url: '{{baseUrl}}/api/stream/sessions/mes-sessions'
+order: 3000
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{token}}'

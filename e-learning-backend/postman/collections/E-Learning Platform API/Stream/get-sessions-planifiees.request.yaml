@@ -1,0 +1,10 @@
+$kind: http-request
+name: 'Get Sessions Planifiées'
+method: GET
+url: '{{baseUrl}}/api/stream/sessions/planifiees'
+order: 5000
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{token}}'

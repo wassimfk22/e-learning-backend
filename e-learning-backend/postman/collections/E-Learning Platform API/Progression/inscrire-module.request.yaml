@@ -1,0 +1,13 @@
+$kind: http-request
+name: 'Inscrire Module'
+method: POST
+url: '{{baseUrl}}/api/progression/inscrire/:moduleId'
+order: 2000
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{token}}'
+pathVariables:
+  - key: moduleId
+    value: '1'
