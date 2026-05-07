@@ -11,8 +11,8 @@ import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -33,7 +33,6 @@ public class EtudiantQuizService {
 
     // ══════════════════════════════════════════════════════════════
     // 1. LISTER LES QUIZ D'UN COURS
-    //    Vérifie que l'étudiant appartient au niveau → module → cours
     // ══════════════════════════════════════════════════════════════
 
     public List<QuizEtudiantResponse> getQuizzesDuCours(Long coursId, Authentication auth) {
@@ -46,163 +45,221 @@ public class EtudiantQuizService {
     }
 
     // ══════════════════════════════════════════════════════════════
-    // 2. DÉMARRER UNE TENTATIVE
-    //    Crée une TentativeQuiz EN_COURS pour l'étudiant
+    // 2. DÉMARRER LE QUIZ (passage unique)
+    //    - Vérifie que l'étudiant n'a pas déjà passé ce quiz
+    //    - Crée la TentativeQuiz EN_COURS avec dateExpiration
+    //    - Tire aléatoirement le bon nombre de questions
     // ══════════════════════════════════════════════════════════════
 
     @Transactional
-    public TentativeResponse demarrerTentative(Long quizId, Authentication auth) {
+    public TentativeResponse demarrerQuiz(Long quizId, Authentication auth) {
         Etudiant etudiant = getEtudiantConnecte(auth);
         Quiz quiz = findQuiz(quizId);
 
-        // Vérifier accès via niveau
         verifierAccesCours(etudiant, quiz.getCours().getId());
 
-        // Vérifier dates du quiz
-        LocalDate aujourd_hui = LocalDate.now();
-        if (aujourd_hui.isBefore(quiz.getDateDebut())) {
-            throw new RuntimeException("Ce quiz n'est pas encore ouvert. Ouverture le " + quiz.getDateDebut());
-        }
-        if (aujourd_hui.isAfter(quiz.getDateFin())) {
-            throw new RuntimeException("Ce quiz est fermé depuis le " + quiz.getDateFin());
-        }
-
-        // Vérifier qu'il n'y a pas déjà une tentative EN_COURS
-        Optional<TentativeQuiz> enCours = tentativeRepository
-                .findByEtudiantAndQuizAndStatut(etudiant, quiz, StatutTentative.EN_COURS);
-        if (enCours.isPresent()) {
-            return toTentativeResponse(enCours.get());
-        }
-
-        // Compter tentatives soumises
-        int tentativesEffectuees = tentativeRepository
-                .countByEtudiantAndQuizAndStatut(etudiant, quiz, StatutTentative.SOUMISE);
-
-        if (tentativesEffectuees >= quiz.getNombreTentativesMax()) {
-            throw new RuntimeException(
-                "Nombre maximum de tentatives atteint (" + quiz.getNombreTentativesMax() + "/" + quiz.getNombreTentativesMax() + ")"
-            );
+        // Vérifier passage unique : déjà soumis → refus définitif
+        Optional<TentativeQuiz> existante = tentativeRepository.findByEtudiantAndQuiz(etudiant, quiz);
+        if (existante.isPresent()) {
+            TentativeQuiz t = existante.get();
+            if (t.getStatut() == StatutTentative.SOUMISE) {
+                throw new RuntimeException("Vous avez déjà passé ce quiz. Le quiz ne peut être passé qu'une seule fois.");
+            }
+            // Session EN_COURS encore valide → renvoyer la tentative existante
+            if (!t.estExpiree()) {
+                return toTentativeResponse(t);
+            }
+            // Session EN_COURS expirée → soumettre automatiquement
+            return toTentativeResponse(soumettreAutomatiquement(t));
         }
 
-        // Calculer score max
-        double scoreMax = quiz.getQuestions().stream()
+        // Calcul du score max sur les questions qui seront affichées
+        List<QuestionQuiz> toutesQuestions = quiz.getQuestions();
+        int nbAfficher = Math.min(quiz.getNombreQuestions(), toutesQuestions.size());
+
+        // Pioche aléatoire
+        List<QuestionQuiz> questionsSelectionnees = new ArrayList<>(toutesQuestions);
+        Collections.shuffle(questionsSelectionnees);
+        questionsSelectionnees = questionsSelectionnees.subList(0, nbAfficher);
+
+        double scoreMax = questionsSelectionnees.stream()
                 .mapToDouble(QuestionQuiz::getPoints).sum();
 
-        // Créer la tentative
+        // Création de la tentative
+        LocalDateTime maintenant = LocalDateTime.now();
         TentativeQuiz tentative = new TentativeQuiz();
         tentative.setEtudiant(etudiant);
         tentative.setQuiz(quiz);
-        tentative.setNumeroTentative(tentativesEffectuees + 1);
         tentative.setScoreMax(scoreMax);
         tentative.setScoreObtenu(0);
-        tentative.setTentativesRestantes(quiz.getNombreTentativesMax() - tentativesEffectuees - 1);
+        tentative.setPourcentage(0);
         tentative.setStatut(StatutTentative.EN_COURS);
-        tentative.setDateDebut(LocalDateTime.now());
+        tentative.setDateDebut(maintenant);
+        tentative.setDateExpiration(maintenant.plusMinutes(quiz.getDureeMinutes()));
 
         return toTentativeResponse(tentativeRepository.save(tentative));
     }
 
     // ══════════════════════════════════════════════════════════════
-    // 3. RÉPONDRE À UNE QUESTION
-    
-    @Transactional
-    public List<ReponseQuizResultat> repondreQuestions(List<ReponseQuizRequest> requests, Authentication auth) {
-        // A. Initialisation et vérifications de sécurité
+    // 3. RÉCUPÉRER LES QUESTIONS DE LA TENTATIVE EN COURS
+    //    Appelé après demarrerQuiz pour afficher les questions
+    // ══════════════════════════════════════════════════════════════
+
+    public List<QuestionEtudiantResponse> getQuestionsDeTentative(Long tentativeId, Authentication auth) {
         Etudiant etudiant = getEtudiantConnecte(auth);
-        TentativeQuiz tentative = validerEtRecupererTentative(requests.get(0).getTentativeId(), etudiant);
+        TentativeQuiz tentative = findTentative(tentativeId, etudiant);
 
-        // B. Enregistrement des réponses une par une
-        List<ReponseQuizResultat> resultats = new ArrayList<>();
-        for (ReponseQuizRequest req : requests) {
-            resultats.add(traiterEnregistrementReponse(req, tentative));
-        }
+        verifierTentativeActive(tentative);
 
-        // C. Finalisation (Calcul du score si fini)
-        verifierEtFinaliserTentative(tentative, resultats);
+        Quiz quiz = tentative.getQuiz();
+        List<QuestionQuiz> toutesQuestions = quiz.getQuestions();
+        int nbAfficher = Math.min(quiz.getNombreQuestions(), toutesQuestions.size());
 
-        return resultats;
-    }
-    
-    private TentativeQuiz validerEtRecupererTentative(Long tentativeId, Etudiant etudiant) {
-        TentativeQuiz tentative = tentativeRepository.findById(tentativeId)
-                .orElseThrow(() -> new RuntimeException("Tentative introuvable"));
+        // On reproduit la même pioche déterministe grâce à la seed = id de la tentative
+        // → même ordre garanti entre les appels
+        List<QuestionQuiz> questions = new ArrayList<>(toutesQuestions);
+        Collections.shuffle(questions, new Random(tentative.getId()));
+        questions = questions.subList(0, nbAfficher);
 
-        if (!tentative.getEtudiant().getId().equals(etudiant.getId())) {
-            throw new RuntimeException("Accès refusé : ce n'est pas votre tentative");
-        }
-        if (tentative.getStatut() != StatutTentative.EN_COURS) {
-            throw new RuntimeException("Cette tentative est déjà clôturée");
-        }
-        return tentative;
-    }
-    
-    private ReponseQuizResultat traiterEnregistrementReponse(ReponseQuizRequest req, TentativeQuiz tentative) {
-        QuestionQuiz question = questionQuizRepository.findById(req.getQuestionId())
-                .orElseThrow(() -> new RuntimeException("Question introuvable"));
-
-        // Empêcher de répondre deux fois à la même question
-        if (reponseRepository.existsByTentativeAndQuestion(tentative, question)) {
-            return creerResultatDejaRepondu(question, req);
-        }
-
-        boolean estCorrecte = question.getBonneReponse().equalsIgnoreCase(req.getReponseChoisie());
-        
-        ReponseQuiz reponse = new ReponseQuiz();
-        reponse.setTentative(tentative);
-        reponse.setQuestion(question);
-        reponse.setReponseChoisie(req.getReponseChoisie());
-        reponse.setEstCorrecte(estCorrecte);
-        reponse.setPointsObtenus(estCorrecte ? question.getPoints() : 0);
-        
-        reponseRepository.save(reponse);
-        return transformerEnResultat(reponse);
-    }
-    
-    private void verifierEtFinaliserTentative(TentativeQuiz tentative, List<ReponseQuizResultat> resultats) {
-        int totalQuestions = tentative.getQuiz().getQuestions().size();
-        int questionsRepondues = reponseRepository.countByTentative(tentative);
-
-        if (questionsRepondues >= totalQuestions) {
-            // Calcul du score total
-            double pointsTotauxObtenus = reponseRepository.sumPointsByTentative(tentative);
-            double baremeMaximum = tentative.getQuiz().getQuestions().stream()
-                                            .mapToDouble(QuestionQuiz::getPoints).sum();
-
-            // Calcul du pourcentage : (Obtenu / Total) * 100
-            double pourcentage = (pointsTotauxObtenus / baremeMaximum) * 100;
-
-            // Mise à jour de la tentative
-            tentative.setScoreFinal(pointsTotauxObtenus);
-            tentative.setPourcentage(pourcentage);
-            tentative.setStatut(StatutTentative.TERMINEE);
-            tentative.setDateFin(new Date());
-            
-            tentativeRepository.save(tentative);
-
-            // On informe le dernier résultat de la liste
-            ReponseQuizResultat dernierRes = resultats.get(resultats.size() - 1);
-            dernierRes.setToutesReponsesEnvoyees(true);
-            dernierRes.setScoreValeur(pourcentage); // On renvoie le % au front
-        }
+        return questions.stream().map(q -> {
+            QuestionEtudiantResponse r = new QuestionEtudiantResponse();
+            r.setId(q.getId());
+            r.setEnonce(q.getEnonce());
+            r.setChoixPossibles(q.getChoixPossibles());
+            r.setPoints(q.getPoints());
+            return r;
+        }).collect(Collectors.toList());
     }
 
     // ══════════════════════════════════════════════════════════════
-    // 4. HISTORIQUE DES TENTATIVES D'UN ÉTUDIANT POUR UN QUIZ
+    // 4. SOUMETTRE TOUTES LES RÉPONSES EN UNE FOIS (fin de quiz)
+    //    L'étudiant envoie la liste complète de ses réponses + clique "Terminer"
     // ══════════════════════════════════════════════════════════════
 
-    public List<TentativeResponse> getHistoriqueTentatives(Long quizId, Authentication auth) {
+    @Transactional
+    public ScoreFinaleResponse soumettreQuiz(Long tentativeId,
+                                              List<ReponseQuizRequest> reponses,
+                                              Authentication auth) {
+        Etudiant etudiant = getEtudiantConnecte(auth);
+        TentativeQuiz tentative = findTentative(tentativeId, etudiant);
+
+        if (tentative.getStatut() == StatutTentative.SOUMISE) {
+            throw new RuntimeException("Ce quiz a déjà été soumis.");
+        }
+
+        // Si le temps est expiré → on traite quand même les réponses envoyées
+        boolean soumisParExpiration = tentative.estExpiree();
+
+        // Enregistrer les réponses
+        for (ReponseQuizRequest req : reponses) {
+            QuestionQuiz question = questionQuizRepository.findById(req.getQuestionId())
+                    .orElseThrow(() -> new RuntimeException("Question introuvable : " + req.getQuestionId()));
+
+            // On n'enregistre pas deux fois la même question
+            if (reponseRepository.existsByTentativeAndQuestion(tentative, question)) {
+                continue;
+            }
+
+            boolean estCorrecte = question.getBonneReponse()
+                    .equalsIgnoreCase(req.getReponseChoisie());
+
+            ReponseQuiz reponse = new ReponseQuiz();
+            reponse.setTentative(tentative);
+            reponse.setQuestion(question);
+            reponse.setReponseChoisie(req.getReponseChoisie());
+            reponse.setEstCorrecte(estCorrecte);
+            reponse.setPointsObtenus(estCorrecte ? question.getPoints() : 0);
+            reponseRepository.save(reponse);
+        }
+
+        // Calcul du score final
+        double scoreObtenu = reponseRepository.sumPointsByTentative(tentative);
+        double scoreMax = tentative.getScoreMax();
+        double pourcentage = scoreMax > 0
+                ? Math.round((scoreObtenu / scoreMax) * 10000.0) / 100.0
+                : 0;
+
+        // Mise à jour de la tentative
+        tentative.setScoreObtenu(scoreObtenu);
+        tentative.setPourcentage(pourcentage);
+        tentative.setStatut(StatutTentative.SOUMISE);
+        tentative.setDateSoumission(LocalDateTime.now());
+        tentativeRepository.save(tentative);
+
+        // Mise à jour résultats et progression
+        mettreAJourResultatEtProgression(tentative);
+
+        String message = genererMessage(pourcentage, soumisParExpiration);
+
+        ScoreFinaleResponse score = new ScoreFinaleResponse();
+        score.setTentativeId(tentative.getId());
+        score.setScoreObtenu(scoreObtenu);
+        score.setScoreMax(scoreMax);
+        score.setPourcentage(pourcentage);
+        score.setDateSoumission(tentative.getDateSoumission());
+        score.setMessage(message);
+        score.setSoumisParExpiration(soumisParExpiration);
+        return score;
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // 5. SOUMISSION AUTOMATIQUE PAR EXPIRATION DU CHRONO
+    //    Appelé quand l'étudiant revient sur une tentative expirée
+    // ══════════════════════════════════════════════════════════════
+
+    @Transactional
+    public ScoreFinaleResponse soumettreParExpiration(Long tentativeId, Authentication auth) {
+        Etudiant etudiant = getEtudiantConnecte(auth);
+        TentativeQuiz tentative = findTentative(tentativeId, etudiant);
+
+        if (tentative.getStatut() == StatutTentative.SOUMISE) {
+            throw new RuntimeException("Ce quiz a déjà été soumis.");
+        }
+        if (!tentative.estExpiree()) {
+            throw new RuntimeException("Le temps n'est pas encore écoulé.");
+        }
+
+        TentativeQuiz soumise = soumettreAutomatiquement(tentative);
+
+        ScoreFinaleResponse score = new ScoreFinaleResponse();
+        score.setTentativeId(soumise.getId());
+        score.setScoreObtenu(soumise.getScoreObtenu());
+        score.setScoreMax(soumise.getScoreMax());
+        score.setPourcentage(soumise.getPourcentage());
+        score.setDateSoumission(soumise.getDateSoumission());
+        score.setSoumisParExpiration(true);
+        score.setMessage("⏰ Temps écoulé ! Le quiz a été soumis automatiquement. Score : "
+                + String.format("%.1f", soumise.getPourcentage()) + "%");
+        return score;
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // 6. RÉSULTAT D'UN QUIZ PASSÉ (lecture seule)
+    // ══════════════════════════════════════════════════════════════
+
+    public ScoreFinaleResponse getResultat(Long quizId, Authentication auth) {
         Etudiant etudiant = getEtudiantConnecte(auth);
         Quiz quiz = findQuiz(quizId);
-        verifierAccesCours(etudiant, quiz.getCours().getId());
 
-        return tentativeRepository
-                .findByEtudiantAndQuizOrderByNumeroTentativeAsc(etudiant, quiz)
-                .stream().map(this::toTentativeResponse)
-                .collect(Collectors.toList());
+        TentativeQuiz tentative = tentativeRepository.findByEtudiantAndQuiz(etudiant, quiz)
+                .orElseThrow(() -> new RuntimeException("Vous n'avez pas encore passé ce quiz."));
+
+        if (tentative.getStatut() != StatutTentative.SOUMISE) {
+            throw new RuntimeException("Ce quiz est encore en cours.");
+        }
+
+        ScoreFinaleResponse score = new ScoreFinaleResponse();
+        score.setTentativeId(tentative.getId());
+        score.setScoreObtenu(tentative.getScoreObtenu());
+        score.setScoreMax(tentative.getScoreMax());
+        score.setPourcentage(tentative.getPourcentage());
+        score.setDateSoumission(tentative.getDateSoumission());
+        score.setMessage(genererMessage(tentative.getPourcentage(), false));
+        return score;
     }
 
     // ══════════════════════════════════════════════════════════════
-    // 5. DASHBOARD ÉTUDIANT
+    // 7. DASHBOARD ÉTUDIANT
     // ══════════════════════════════════════════════════════════════
 
     public DashboardEtudiantResponse getDashboard(Authentication auth) {
@@ -214,7 +271,8 @@ public class EtudiantQuizService {
 
         float progressionGlobale = progressions.isEmpty() ? 0 :
                 (float) progressions.stream()
-                        .mapToDouble(ProgressionModule::getPourcentageCompletude).average().orElse(0);
+                        .mapToDouble(ProgressionModule::getPourcentageCompletude)
+                        .average().orElse(0);
 
         String niveauNom = (etudiant.getCommunaute() != null
                 && etudiant.getCommunaute().getNiveau() != null)
@@ -224,7 +282,7 @@ public class EtudiantQuizService {
                 .map(p -> toProgressionResponse(p, etudiant))
                 .collect(Collectors.toList());
 
-        List<TentativeResponse> dernieres = tentativeRepository
+        List<TentativeResponse> derniersQuizzes = tentativeRepository
                 .findTop5ByEtudiantOrderByDateDebutDesc(etudiant)
                 .stream().map(this::toTentativeResponse)
                 .collect(Collectors.toList());
@@ -232,7 +290,7 @@ public class EtudiantQuizService {
         return new DashboardEtudiantResponse(
                 etudiant.getNom(), etudiant.getPrenom(), niveauNom,
                 progressions.size(), termines, progressionGlobale,
-                progressionResponses, dernieres
+                progressionResponses, derniersQuizzes
         );
     }
 
@@ -241,45 +299,24 @@ public class EtudiantQuizService {
     // ══════════════════════════════════════════════════════════════
 
     @Transactional
-    private ScoreFinaleResponse soumettreTentative(TentativeQuiz tentative) {
-        // Calculer le score total
-        List<ReponseQuiz> reponses = reponseRepository.findByTentative(tentative);
-        double scoreObtenu = reponses.stream().mapToDouble(ReponseQuiz::getPointsObtenus).sum();
+    private TentativeQuiz soumettreAutomatiquement(TentativeQuiz tentative) {
+        double scoreObtenu = reponseRepository.sumPointsByTentative(tentative);
+        double scoreMax = tentative.getScoreMax();
+        double pourcentage = scoreMax > 0
+                ? Math.round((scoreObtenu / scoreMax) * 10000.0) / 100.0 : 0;
 
         tentative.setScoreObtenu(scoreObtenu);
+        tentative.setPourcentage(pourcentage);
         tentative.setStatut(StatutTentative.SOUMISE);
-        tentative.setDateSoumission(LocalDateTime.now());
+        tentative.setDateSoumission(tentative.getDateExpiration()); // soumis à l'expiration
+        TentativeQuiz sauvee = tentativeRepository.save(tentative);
 
-        int tentativesRestantes = tentative.getTentativesRestantes();
-        tentativeRepository.save(tentative);
-
-        // Mettre à jour les résultats et la progression si tentatives épuisées
-        boolean tentativesEpuisees = (tentativesRestantes == 0);
-        if (tentativesEpuisees) {
-            mettreAJourResultatEtProgression(tentative);
-        }
-
-        // Message dynamique
-        double pourcentage = tentative.getScoreMax() > 0
-                ? (scoreObtenu / tentative.getScoreMax()) * 100 : 0;
-        String message = genererMessage(pourcentage, tentativesRestantes);
-
-        ScoreFinaleResponse score = new ScoreFinaleResponse();
-        score.setTentativeId(tentative.getId());
-        score.setNumeroTentative(tentative.getNumeroTentative());
-        score.setScoreObtenu(scoreObtenu);
-        score.setScoreMax(tentative.getScoreMax());
-        score.setPourcentage(Math.round(pourcentage * 100.0) / 100.0);
-        score.setTentativesRestantes(tentativesRestantes);
-        score.setTentativesEpuisees(tentativesEpuisees);
-        score.setDateSoumission(tentative.getDateSoumission());
-        score.setMessage(message);
-        return score;
+        mettreAJourResultatEtProgression(sauvee);
+        return sauvee;
     }
 
     // ══════════════════════════════════════════════════════════════
-    // MISE À JOUR RÉSULTAT + PROGRESSION (interne)
-    // Appelé quand tentatives épuisées → enregistre le meilleur score
+    // MISE À JOUR RÉSULTAT + PROGRESSION
     // ══════════════════════════════════════════════════════════════
 
     @Transactional
@@ -287,15 +324,12 @@ public class EtudiantQuizService {
         Etudiant etudiant = tentative.getEtudiant();
         Module module = tentative.getQuiz().getCours().getModule();
 
-        // Meilleur score de l'étudiant pour ce quiz
-        Double meilleurScore = tentativeRepository
-                .findMeilleurScoreByEtudiantAndQuiz(etudiant, tentative.getQuiz());
         double scoreMax = tentative.getScoreMax();
         float noteSur20 = scoreMax > 0
-                ? (float) Math.round((meilleurScore / scoreMax) * 20 * 100) / 100f
+                ? (float) Math.round((tentative.getScoreObtenu() / scoreMax) * 20 * 100) / 100f
                 : 0f;
 
-        // Récupérer ou créer le Resultat pour cet étudiant/module
+        // Récupérer ou créer le Resultat
         Resultat resultat = resultatRepository
                 .findByEtudiantIdAndModuleId(etudiant.getId(), module.getId())
                 .orElseGet(() -> {
@@ -308,30 +342,24 @@ public class EtudiantQuizService {
                     return resultatRepository.save(r);
                 });
 
-        // Créer la Note liée à ce quiz
+        // Créer la Note
         Note note = new Note();
         note.setValeur(noteSur20);
-        note.setDateObtention(new Date());
+        note.setDateObtention(new java.util.Date());
         note.setType(TypeNote.QUIZ);
         note.setResultat(resultat);
         noteRepository.save(note);
 
-        // Recalculer la moyenne des quiz pour ce module
-        List<TentativeQuiz> toutesLesTentativesModule = tentativeRepository
+        // Recalculer la moyenne des quiz du module
+        // Chaque quiz est passé une seule fois → moyenne directe
+        List<TentativeQuiz> tentativesModule = tentativeRepository
                 .findByEtudiantAndModuleId(etudiant, module.getId());
 
-        // Grouper par quiz → garder le meilleur score de chaque quiz
-        Map<Long, Double> meilleurScoreParQuiz = new HashMap<>();
-        for (TentativeQuiz t : toutesLesTentativesModule) {
-            Long quizId = t.getQuiz().getId();
-            double scoreNorm = t.getScoreMax() > 0
-                    ? (t.getScoreObtenu() / t.getScoreMax()) * 20 : 0;
-            meilleurScoreParQuiz.merge(quizId, scoreNorm, Math::max);
-        }
-
-        float nouvelleMoyenne = meilleurScoreParQuiz.isEmpty() ? 0f :
-                (float) meilleurScoreParQuiz.values().stream()
-                        .mapToDouble(Double::doubleValue).average().orElse(0);
+        float nouvelleMoyenne = tentativesModule.isEmpty() ? 0f :
+                (float) tentativesModule.stream()
+                        .mapToDouble(t -> t.getScoreMax() > 0
+                                ? (t.getScoreObtenu() / t.getScoreMax()) * 20 : 0)
+                        .average().orElse(0);
 
         resultat.setMoyenneQuizs(nouvelleMoyenne);
         resultat.setMoyenneGenerale((nouvelleMoyenne + resultat.getMoyenneExamens()) / 2);
@@ -342,13 +370,15 @@ public class EtudiantQuizService {
                 .filter(p -> p.getModule().getId().equals(module.getId()))
                 .findFirst()
                 .ifPresent(progression -> {
-                    // Calcul du pourcentage de complétion
-                    long quizzesTotal = module.getCours().stream()
+                    // Calcul : combien de quiz du module ont été soumis ?
+                    long totalQuizzes = module.getCours().stream()
                             .flatMap(c -> c.getQuizzes().stream()).count();
-                    long quizzesTermines = meilleurScoreParQuiz.size();
-                    float completude = quizzesTotal > 0
-                            ? (float) quizzesTermines / quizzesTotal * 100f : 0f;
+                    long quizzesSoumis = tentativesModule.size();
+
+                    float completude = totalQuizzes > 0
+                            ? (float) quizzesSoumis / totalQuizzes * 100f : 0f;
                     progression.setPourcentageCompletude(completude);
+
                     if (completude >= 100f) {
                         progression.setStatut(StatutProgression.TERMINE);
                     } else if (progression.getStatut() == StatutProgression.NON_COMMENCE) {
@@ -359,31 +389,33 @@ public class EtudiantQuizService {
     }
 
     // ══════════════════════════════════════════════════════════════
-    // VÉRIFICATION ACCÈS : Etudiant → Communaute → Niveau → Module → Cours
+    // VÉRIFICATION ACCÈS
     // ══════════════════════════════════════════════════════════════
 
     private void verifierAccesCours(Etudiant etudiant, Long coursId) {
-        // L'étudiant doit appartenir à une communauté ayant un niveau
         if (etudiant.getCommunaute() == null || etudiant.getCommunaute().getNiveau() == null) {
             throw new RuntimeException("Vous n'êtes affecté à aucun niveau. Contactez votre modérateur.");
         }
-
-        Long niveauEtudiantId = etudiant.getCommunaute().getNiveau().getId();
-        System.out.println("DEBUG -> ID Niveau Etudiant: " + niveauEtudiantId);
-        System.out.println("DEBUG -> ID Cours recherché: " + coursId);
-
-        // Vérifier que le cours → module → niveau correspond au niveau de l'étudiant
-     // On vérifie directement si le cours appartient au niveau de l'étudiant
-        // en passant par le module
-        boolean accesAutorise = coursRepository.existsByIdAndModule_Niveau_Id(coursId, niveauEtudiantId);
-
+        Long niveauId = etudiant.getCommunaute().getNiveau().getId();
+        boolean accesAutorise = coursRepository.existsByIdAndModule_Niveau_Id(coursId, niveauId);
         if (!accesAutorise) {
-            throw new RuntimeException("Accès refusé : ce cours n'appartient pas à votre niveau");
+            throw new RuntimeException("Accès refusé : ce cours n'appartient pas à votre niveau.");
+        }
+    }
+
+    private void verifierTentativeActive(TentativeQuiz tentative) {
+        if (tentative.getStatut() == StatutTentative.SOUMISE) {
+            throw new RuntimeException("Ce quiz a déjà été soumis.");
+        }
+        if (tentative.estExpiree()) {
+            // On soumet automatiquement et on informe
+            soumettreAutomatiquement(tentative);
+            throw new RuntimeException("Le temps est écoulé. Le quiz a été soumis automatiquement.");
         }
     }
 
     // ══════════════════════════════════════════════════════════════
-    // HELPERS & MAPPERS
+    // HELPERS
     // ══════════════════════════════════════════════════════════════
 
     private Etudiant getEtudiantConnecte(Authentication auth) {
@@ -397,73 +429,103 @@ public class EtudiantQuizService {
                 .orElseThrow(() -> new RuntimeException("Quiz introuvable : " + id));
     }
 
-    private String genererMessage(double pourcentage, int tentativesRestantes) {
-        String appreciation;
-        if (pourcentage >= 90) appreciation = "🏆 Excellent !";
-        else if (pourcentage >= 70) appreciation = "👍 Bien !";
-        else if (pourcentage >= 50) appreciation = "📚 Passable, continuez vos efforts.";
-        else appreciation = "❌ Insuffisant, révisez et réessayez.";
-
-        if (tentativesRestantes > 0) {
-            return appreciation + " Score : " + String.format("%.1f", pourcentage) + "%. "
-                    + "Il vous reste " + tentativesRestantes + " tentative(s).";
-        } else {
-            return appreciation + " Score final : " + String.format("%.1f", pourcentage) + "%. "
-                    + "Toutes vos tentatives sont épuisées.";
+    private TentativeQuiz findTentative(Long tentativeId, Etudiant etudiant) {
+        TentativeQuiz tentative = tentativeRepository.findById(tentativeId)
+                .orElseThrow(() -> new RuntimeException("Tentative introuvable"));
+        if (!tentative.getEtudiant().getId().equals(etudiant.getId())) {
+            throw new RuntimeException("Accès refusé : ce n'est pas votre tentative");
         }
+        return tentative;
     }
 
-    private QuizEtudiantResponse toQuizEtudiantResponse(Quiz quiz, Etudiant etudiant) {
-        int effectuees = tentativeRepository.countByEtudiantAndQuizAndStatut(
-                etudiant, quiz, StatutTentative.SOUMISE);
-        int restantes = Math.max(0, quiz.getNombreTentativesMax() - effectuees);
-        LocalDate today = LocalDate.now();
-        boolean peutPasser = restantes > 0
-                && !today.isBefore(quiz.getDateDebut())
-                && !today.isAfter(quiz.getDateFin());
+    private String genererMessage(double pourcentage, boolean parExpiration) {
+        String appreciation;
+        if (pourcentage >= 90)      appreciation = "🏆 Excellent !";
+        else if (pourcentage >= 70) appreciation = "👍 Bien !";
+        else if (pourcentage >= 50) appreciation = "📚 Passable, continuez vos efforts.";
+        else                        appreciation = "❌ Insuffisant, révisez ce cours.";
 
+        String base = appreciation + " Score : " + String.format("%.1f", pourcentage) + "%";
+        return parExpiration ? "⏰ Temps écoulé. " + base : base;
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // MAPPERS
+    // ══════════════════════════════════════════════════════════════
+
+    private QuizEtudiantResponse toQuizEtudiantResponse(Quiz quiz, Etudiant etudiant) {
+        Optional<TentativeQuiz> tentativeOpt = tentativeRepository
+                .findByEtudiantAndQuiz(etudiant, quiz);
+
+        boolean dejaPasse = tentativeOpt
+                .map(t -> t.getStatut() == StatutTentative.SOUMISE)
+                .orElse(false);
+
+        boolean enCours = tentativeOpt
+                .map(t -> t.getStatut() == StatutTentative.EN_COURS && !t.estExpiree())
+                .orElse(false);
+
+        int nbAfficher = Math.min(quiz.getNombreQuestions(), quiz.getQuestions().size());
         double pointsTotal = quiz.getQuestions().stream()
                 .mapToDouble(QuestionQuiz::getPoints).sum();
 
-        List<QuestionEtudiantResponse> questions = quiz.getQuestions().stream().map(q -> {
-            QuestionEtudiantResponse qr = new QuestionEtudiantResponse();
-            qr.setId(q.getId());
-            qr.setEnonce(q.getEnonce());
-            qr.setChoixPossibles(q.getChoixPossibles());
-            qr.setPoints(q.getPoints());
-            return qr;
-        }).collect(Collectors.toList());
+        // Questions (sans bonneReponse) — tirage déterministe si tentative en cours
+        List<QuestionEtudiantResponse> questions = new ArrayList<>();
+        if (!dejaPasse) {
+            List<QuestionQuiz> pool = new ArrayList<>(quiz.getQuestions());
+            if (enCours && tentativeOpt.isPresent()) {
+                Collections.shuffle(pool, new Random(tentativeOpt.get().getId()));
+            } else {
+                Collections.shuffle(pool);
+            }
+            pool.subList(0, Math.min(nbAfficher, pool.size())).forEach(q -> {
+                QuestionEtudiantResponse qr = new QuestionEtudiantResponse();
+                qr.setId(q.getId());
+                qr.setEnonce(q.getEnonce());
+                qr.setChoixPossibles(q.getChoixPossibles());
+                qr.setPoints(q.getPoints());
+                questions.add(qr);
+            });
+        }
 
         QuizEtudiantResponse r = new QuizEtudiantResponse();
         r.setId(quiz.getId());
         r.setTitre(quiz.getTitre());
-        r.setDateDebut(quiz.getDateDebut());
-        r.setDateFin(quiz.getDateFin());
-        r.setNombreTentativesMax(quiz.getNombreTentativesMax());
-        r.setTentativesDejaEffectuees(effectuees);
-        r.setTentativesRestantes(restantes);
-        r.setPeutPasser(peutPasser);
-        r.setNombreQuestions(quiz.getQuestions().size());
+        r.setDureeMinutes(quiz.getDureeMinutes());
+        r.setNombreQuestions(nbAfficher);
         r.setPointsTotal(pointsTotal);
         r.setCoursTitre(quiz.getCours() != null ? quiz.getCours().getTitre() : null);
+        r.setDejaPasse(dejaPasse);
+        r.setEnCours(enCours);
         r.setQuestions(questions);
+
+        tentativeOpt.ifPresent(t -> {
+            r.setTentativeId(t.getId());
+            r.setDateExpiration(t.getDateExpiration());
+        });
+
         return r;
     }
 
     private TentativeResponse toTentativeResponse(TentativeQuiz t) {
-        double pourcentage = t.getScoreMax() > 0
-                ? Math.round((t.getScoreObtenu() / t.getScoreMax()) * 10000.0) / 100.0 : 0;
+        long secondesRestantes = -1;
+        if (t.getStatut() == StatutTentative.EN_COURS && t.getDateExpiration() != null) {
+            secondesRestantes = Math.max(0,
+                    ChronoUnit.SECONDS.between(LocalDateTime.now(), t.getDateExpiration()));
+        }
+
         TentativeResponse r = new TentativeResponse();
         r.setId(t.getId());
-        r.setNumeroTentative(t.getNumeroTentative());
         r.setScoreObtenu(t.getScoreObtenu());
         r.setScoreMax(t.getScoreMax());
-        r.setPourcentage(pourcentage);
-        r.setTentativesRestantes(t.getTentativesRestantes());
+        r.setPourcentage(t.getPourcentage());
         r.setStatut(t.getStatut());
         r.setDateDebut(t.getDateDebut());
+        r.setDateExpiration(t.getDateExpiration());
         r.setDateSoumission(t.getDateSoumission());
         r.setQuizTitre(t.getQuiz() != null ? t.getQuiz().getTitre() : null);
+        r.setDureeMinutes(t.getQuiz() != null ? t.getQuiz().getDureeMinutes() : 0);
+        r.setSecondesRestantes(secondesRestantes);
         return r;
     }
 
@@ -485,7 +547,4 @@ public class EtudiantQuizService {
         });
         return r;
     }
-    
-    
-    
 }

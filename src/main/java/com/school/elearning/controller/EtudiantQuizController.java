@@ -1,8 +1,5 @@
-// ════════════════════════════════════════════════════
-// EtudiantQuizController.java  →  controller/
-// ════════════════════════════════════════════════════
 package com.school.elearning.controller;
- 
+
 import com.school.elearning.dto.*;
 import com.school.elearning.service.EtudiantQuizService;
 import lombok.RequiredArgsConstructor;
@@ -10,20 +7,22 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
- 
+
 import java.util.List;
- 
+
 /**
  * ╔═══════════════════════════════════════════════════════════════╗
  * ║  ÉTUDIANT QUIZ CONTROLLER                                     ║
  * ║  Accès : ETUDIANT uniquement                                  ║
  * ║  Base  : /api/etudiant                                        ║
  * ╠═══════════════════════════════════════════════════════════════╣
- * ║  GET  /quiz/cours/{coursId}         → quiz accessibles        ║
- * ║  POST /quiz/{quizId}/demarrer       → démarrer une tentative  ║
- * ║  POST /quiz/repondre                → répondre à une question ║
- * ║  GET  /quiz/{quizId}/historique     → mes tentatives          ║
- * ║  GET  /dashboard                    → mon tableau de bord     ║
+ * ║  GET  /quiz/cours/{coursId}         → quiz du cours           ║
+ * ║  POST /quiz/{quizId}/demarrer       → démarrer (chrono)       ║
+ * ║  GET  /quiz/tentative/{id}/questions→ questions en cours      ║
+ * ║  POST /quiz/tentative/{id}/soumettre→ soumettre les réponses  ║
+ * ║  POST /quiz/tentative/{id}/expirer  → soumission par timeout  ║
+ * ║  GET  /quiz/{quizId}/resultat       → résultat d'un quiz passé║
+ * ║  GET  /dashboard                    → tableau de bord         ║
  * ╚═══════════════════════════════════════════════════════════════╝
  */
 @RestController
@@ -31,49 +30,71 @@ import java.util.List;
 @PreAuthorize("hasRole('ETUDIANT')")
 @RequiredArgsConstructor
 public class EtudiantQuizController {
- 
+
     private final EtudiantQuizService etudiantQuizService;
- 
+
     // ── QUIZ D'UN COURS ──────────────────────────────────────────
     // GET /api/etudiant/quiz/cours/{coursId}
-    // Retourne les quiz du cours avec : peutPasser, tentativesRestantes, questions (sans bonneReponse)
-    // ❌ Erreur si l'étudiant n'appartient pas au bon niveau
+    // Retourne les quiz avec : dejaPasse, enCours, dateExpiration, questions
     @GetMapping("/quiz/cours/{coursId}")
     public ResponseEntity<List<QuizEtudiantResponse>> getQuizzesDuCours(
             @PathVariable Long coursId, Authentication auth) {
         return ResponseEntity.ok(etudiantQuizService.getQuizzesDuCours(coursId, auth));
     }
- 
-    // ── DÉMARRER UNE TENTATIVE ───────────────────────────────────
+
+    // ── DÉMARRER LE QUIZ ─────────────────────────────────────────
     // POST /api/etudiant/quiz/{quizId}/demarrer
-    // Crée ou retourne la tentative EN_COURS
-    // ❌ Erreur si tentatives épuisées ou quiz hors dates
+    // Crée la tentative unique et démarre le chrono
+    // ❌ Erreur si l'étudiant a déjà passé ce quiz
     @PostMapping("/quiz/{quizId}/demarrer")
-    public ResponseEntity<TentativeResponse> demarrerTentative(
+    public ResponseEntity<TentativeResponse> demarrerQuiz(
             @PathVariable Long quizId, Authentication auth) {
-        return ResponseEntity.ok(etudiantQuizService.demarrerTentative(quizId, auth));
+        return ResponseEntity.ok(etudiantQuizService.demarrerQuiz(quizId, auth));
     }
- 
-    // ── RÉPONDRE À UNE QUESTION ──────────────────────────────────
-    // POST /api/etudiant/quiz/repondre
-    @PostMapping("/quiz/repondre")
-    public ResponseEntity<List<ReponseQuizResultat>> repondreQuestions(
-            @RequestBody List<ReponseQuizRequest> requests, Authentication auth) {
-        return ResponseEntity.ok(etudiantQuizService.repondreQuestions(requests, auth));
+
+    // ── QUESTIONS DE LA TENTATIVE EN COURS ───────────────────────
+    // GET /api/etudiant/quiz/tentative/{tentativeId}/questions
+    // Retourne les questions (tirage déterministe basé sur l'id tentative)
+    // ❌ Erreur si tentative expirée ou déjà soumise
+    @GetMapping("/quiz/tentative/{tentativeId}/questions")
+    public ResponseEntity<List<QuestionEtudiantResponse>> getQuestions(
+            @PathVariable Long tentativeId, Authentication auth) {
+        return ResponseEntity.ok(etudiantQuizService.getQuestionsDeTentative(tentativeId, auth));
     }
- 
-    // ── HISTORIQUE DES TENTATIVES ────────────────────────────────
-    // GET /api/etudiant/quiz/{quizId}/historique
-    // Retourne toutes les tentatives (EN_COURS et SOUMISE) pour ce quiz
-    @GetMapping("/quiz/{quizId}/historique")
-    public ResponseEntity<List<TentativeResponse>> getHistorique(
+
+    // ── SOUMETTRE LES RÉPONSES ────────────────────────────────────
+    // POST /api/etudiant/quiz/tentative/{tentativeId}/soumettre
+    // Body: [ { "tentativeId": 1, "questionId": 5, "reponseChoisie": "Paris" }, ... ]
+    // L'étudiant envoie toutes ses réponses en une seule fois
+    @PostMapping("/quiz/tentative/{tentativeId}/soumettre")
+    public ResponseEntity<ScoreFinaleResponse> soumettreQuiz(
+            @PathVariable Long tentativeId,
+            @RequestBody List<ReponseQuizRequest> reponses,
+            Authentication auth) {
+        return ResponseEntity.ok(etudiantQuizService.soumettreQuiz(tentativeId, reponses, auth));
+    }
+
+    // ── SOUMISSION PAR EXPIRATION ─────────────────────────────────
+    // POST /api/etudiant/quiz/tentative/{tentativeId}/expirer
+    // Appelé par le frontend quand le chrono atteint 0
+    // Calcule le score sur les réponses déjà enregistrées
+    @PostMapping("/quiz/tentative/{tentativeId}/expirer")
+    public ResponseEntity<ScoreFinaleResponse> soumettreParExpiration(
+            @PathVariable Long tentativeId, Authentication auth) {
+        return ResponseEntity.ok(etudiantQuizService.soumettreParExpiration(tentativeId, auth));
+    }
+
+    // ── RÉSULTAT D'UN QUIZ ────────────────────────────────────────
+    // GET /api/etudiant/quiz/{quizId}/resultat
+    // Consulter le résultat après soumission
+    @GetMapping("/quiz/{quizId}/resultat")
+    public ResponseEntity<ScoreFinaleResponse> getResultat(
             @PathVariable Long quizId, Authentication auth) {
-        return ResponseEntity.ok(etudiantQuizService.getHistoriqueTentatives(quizId, auth));
+        return ResponseEntity.ok(etudiantQuizService.getResultat(quizId, auth));
     }
- 
-    // ── DASHBOARD ────────────────────────────────────────────────
+
+    // ── DASHBOARD ─────────────────────────────────────────────────
     // GET /api/etudiant/dashboard
-    // Retourne : progressions, moyennes quiz/examens, 5 dernières tentatives
     @GetMapping("/dashboard")
     public ResponseEntity<DashboardEtudiantResponse> getDashboard(Authentication auth) {
         return ResponseEntity.ok(etudiantQuizService.getDashboard(auth));

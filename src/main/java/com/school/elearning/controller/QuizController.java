@@ -17,6 +17,7 @@ import java.util.List;
  * ║  Base  : /api/quiz                                       ║
  * ╠══════════════════════════════════════════════════════════╣
  * ║  POST   /api/quiz                    → créer un quiz     ║
+ * ║  PUT    /api/quiz/{id}               → modifier          ║
  * ║  GET    /api/quiz/mes-quizzes        → mes quiz          ║
  * ║  GET    /api/quiz/{id}               → détail quiz       ║
  * ║  GET    /api/quiz/cours/{coursId}    → quiz d'un cours   ║
@@ -31,14 +32,12 @@ public class QuizController {
 
     private final QuizService quizService;
 
-    // ── CRÉER ────────────────────────────────────────────────────
     // POST /api/quiz
     // Body:
     // {
     //   "titre": "Quiz POO",
-    //   "dateDebut": "2025-06-01",
-    //   "dateFin": "2025-06-30",
-    //   "nombreTentativesMax": 3,
+    //   "dureeMinutes": 60,
+    //   "nombreQuestions": 5,
     //   "coursId": 1,
     //   "questions": [
     //     {
@@ -46,69 +45,52 @@ public class QuizController {
     //       "choixPossibles": ["Répétition", "Transmission", "Encapsulation", "Abstraction"],
     //       "bonneReponse": "Transmission",
     //       "points": 2.0
-    //     },
-    //     {
-    //       "enonce": "Quel mot-clé pour hériter en Java ?",
-    //       "choixPossibles": ["implements", "extends", "inherits", "super"],
-    //       "bonneReponse": "extends",
-    //       "points": 1.5
     //     }
     //   ]
     // }
     @PostMapping
     public ResponseEntity<QuizDetailEnseignantResponse> creer(
-            @RequestBody QuizRequest request,
-            Authentication auth) {
+            @RequestBody QuizRequest request, Authentication auth) {
         return ResponseEntity.ok(quizService.creerQuiz(request, auth));
     }
 
-    // ── MES QUIZ ─────────────────────────────────────────────────
+    // PUT /api/quiz/{id}
+    @PutMapping("/{id}")
+    public ResponseEntity<QuizDetailEnseignantResponse> modifier(
+            @PathVariable Long id,
+            @RequestBody QuizRequest request,
+            Authentication auth) {
+        return ResponseEntity.ok(quizService.modifierQuiz(id, request, auth));
+    }
+
     // GET /api/quiz/mes-quizzes
-    // Retourne tous les quiz des cours dont les modules appartiennent à l'enseignant
     @GetMapping("/mes-quizzes")
     public ResponseEntity<List<QuizResponse>> getMesQuizzes(Authentication auth) {
         return ResponseEntity.ok(quizService.getMesQuizzes(auth));
     }
 
-    // ── DÉTAIL D'UN QUIZ ─────────────────────────────────────────
     // GET /api/quiz/{id}
-    // Retourne les questions avec les bonnes réponses (vue enseignant)
     @GetMapping("/{id}")
     public ResponseEntity<QuizDetailEnseignantResponse> getQuiz(
-            @PathVariable Long id,
-            Authentication auth) {
+            @PathVariable Long id, Authentication auth) {
         return ResponseEntity.ok(quizService.getQuizEnseignant(id, auth));
     }
 
-    // ── QUIZ PAR COURS ───────────────────────────────────────────
     // GET /api/quiz/cours/{coursId}
-    // Retourne les quiz d'un cours spécifique (le cours doit appartenir à l'enseignant)
     @GetMapping("/cours/{coursId}")
     public ResponseEntity<List<QuizResponse>> getQuizzesByCours(
-            @PathVariable Long coursId,
-            Authentication auth) {
+            @PathVariable Long coursId, Authentication auth) {
         return ResponseEntity.ok(quizService.getQuizzesByCours(coursId, auth));
     }
 
-    // ── SUPPRIMER ────────────────────────────────────────────────
     // DELETE /api/quiz/{id}
-    // Supprime le quiz ET toutes ses questions (cascade)
     @DeleteMapping("/{id}")
     public ResponseEntity<String> supprimer(
-            @PathVariable Long id,
-            Authentication auth) {
+            @PathVariable Long id, Authentication auth) {
         quizService.supprimerQuiz(id, auth);
         return ResponseEntity.ok("Quiz supprimé avec succès");
     }
     
-    @PutMapping("/{id}")
-    public ResponseEntity<QuizDetailEnseignantResponse> modifierQuiz(
-            @PathVariable Long id,
-            @RequestBody QuizRequest request,
-            Authentication auth) {
-        
-        QuizDetailEnseignantResponse response = quizService.modifierQuiz(id, request, auth);
-        return ResponseEntity.ok(response);
-    }
+    
     
 }

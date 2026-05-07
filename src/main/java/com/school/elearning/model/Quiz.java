@@ -10,15 +10,21 @@ import java.util.List;
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor
 public class Quiz extends Evaluation {
 
-    private int nombreTentativesMax;
+    // Durée en minutes que l'enseignant fixe (ex: 60 min)
+    private int dureeMinutes;
+
+    // Nombre de questions à afficher à l'étudiant (pioche aléatoire si > total questions)
+    private int nombreQuestions;
 
     // Chaque quiz appartient à un cours
-    // Le module est accessible via cours.getModule()
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "cours_id", nullable = false)
     private Cours cours;
 
-    // Un quiz contient plusieurs questions dédiées (QuestionQuiz ≠ Question d'Examen)
+    // Un quiz contient plusieurs questions
     @OneToMany(mappedBy = "quiz", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<QuestionQuiz> questions = new ArrayList<>();
+    
+    
+    
 }

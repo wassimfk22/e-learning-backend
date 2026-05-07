@@ -1,28 +1,23 @@
-// ══════════════════════════════════════════════════════
-// QuizResponse.java
-// Vue liste — sans les questions détaillées
-// ══════════════════════════════════════════════════════
 package com.school.elearning.dto;
- 
+
 import lombok.*;
-import java.time.LocalDate;
- 
+
 @Data @NoArgsConstructor @AllArgsConstructor
 public class QuizResponse {
+	
     private Long id;
     private String titre;
-    private LocalDate dateDebut;
-    private LocalDate dateFin;
-    private int nombreTentativesMax;
-    private int nombreQuestions;        // count uniquement
-    private double pointsTotal;         // somme des points de toutes les questions
+    private int dureeMinutes;
+    private int nombreQuestions;      // nb de questions que l'étudiant verra
+    private int totalQuestions;       // nb total de questions dans la banque
+    private double pointsTotal;
     // Cours
     private Long coursId;
     private String coursTitre;
-    // Module (via cours)
+    // Module
     private Long moduleId;
     private String moduleTitre;
-    // Enseignant (via module)
+    // Enseignant
     private String enseignantNom;
     private String enseignantPrenom;
     

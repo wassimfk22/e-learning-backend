@@ -19,7 +19,7 @@ public class Cours {
 
     @ManyToOne @JoinColumn(name = "module_id")
     private Module module;
-
+    
     @OneToMany(mappedBy = "cours", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("ordre ASC")
     private List<Content> contents;
