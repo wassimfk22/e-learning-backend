@@ -3,10 +3,13 @@ package com.school.elearning.controller;
 import com.school.elearning.dto.EtudiantRequest;
 import com.school.elearning.dto.UtilisateurResponse;
 import com.school.elearning.service.EtudiantService;
+
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -29,7 +32,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/moderation")
 @PreAuthorize("hasAnyRole('ADMIN', 'MODERATEUR')")
-@RequiredArgsConstructor
+@RequiredArgsConstructor @Validated
 public class ModerationController {
 
     private final EtudiantService etudiantService;
@@ -52,7 +55,7 @@ public class ModerationController {
     //         "motDePasse":"pass123", "telephone":"0600000099" }
     @PostMapping("/etudiants")
     public ResponseEntity<UtilisateurResponse> creerEtudiant(
-            @RequestBody EtudiantRequest request) {
+            @RequestBody @Valid EtudiantRequest request) {
         return ResponseEntity.ok(etudiantService.creerEtudiant(request));
     }
 
