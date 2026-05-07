@@ -14,7 +14,10 @@ import com.school.elearning.model.Module;
 public abstract class Evaluation {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+    
+    @Column(nullable = false)
     private String titre;
+    
     private LocalDate dateDebut;
     private LocalDate dateFin;
     
@@ -23,7 +26,7 @@ public abstract class Evaluation {
     private List <Etudiant> etudiants;
     
     // Chaque evaluation appartient à un seul module
-    @ManyToOne @JoinColumn(name = "module_id")
+    @ManyToOne @JoinColumn(name = "module_id", nullable = false)
     private Module module;
 
     // Chaque evaluation aura une note final

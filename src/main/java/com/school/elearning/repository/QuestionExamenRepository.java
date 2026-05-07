@@ -1,12 +1,14 @@
 package com.school.elearning.repository;
 
 import com.school.elearning.model.QuestionExamen;
-
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
-@Repository
-public interface QuestionRepository extends JpaRepository<QuestionExamen, Long> {
-    java.util.List<QuestionExamen> findByExamenId(Long examenId);
+import java.util.List;
 
+@Repository
+public interface QuestionExamenRepository extends JpaRepository<QuestionExamen, Long> {
+	
+    List<QuestionExamen> findByExamenId(Long examenId);
+    
 }

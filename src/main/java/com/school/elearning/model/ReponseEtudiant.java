@@ -17,5 +17,5 @@ public class ReponseEtudiant {
  // 🟠 CORRECTION : Question a @OneToOne @JoinColumn(reponse_id) → elle possède la FK
     // Donc ici on met mappedBy pour éviter 2 colonnes FK en base
     @OneToOne(mappedBy = "reponse")
-    private Question question;
+    private QuestionExamen question;
 }

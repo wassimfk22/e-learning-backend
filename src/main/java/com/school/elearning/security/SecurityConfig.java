@@ -86,19 +86,19 @@ public class SecurityConfig {
                 // QUIZS
                 // ══════════════════════════════════════════════════════
                 
-                // Quiz côté enseignant
                 .requestMatchers(HttpMethod.POST,   "/api/quiz/**").hasRole("ENSEIGNANT")
                 .requestMatchers(HttpMethod.GET,    "/api/quiz/**").hasRole("ENSEIGNANT")
                 .requestMatchers(HttpMethod.PUT,    "/api/quiz/**").hasRole("ENSEIGNANT")
                 .requestMatchers(HttpMethod.PATCH,  "/api/quiz/**").hasRole("ENSEIGNANT")
                 .requestMatchers(HttpMethod.DELETE, "/api/quiz/**").hasRole("ENSEIGNANT")
-                
-                // Quiz + progression côté étudiant
+                 
+                // Examens enseignant
+                .requestMatchers("/api/examens/**").hasRole("ENSEIGNANT")
+                 
+                // Étudiant : quiz, cours, examens, progression
                 .requestMatchers("/api/etudiant/**").hasRole("ETUDIANT")
                 .requestMatchers("/api/progression/**").hasRole("ETUDIANT")
                 
-                
-
                 // ══════════════════════════════════════════════════════
                 // ANNONCES
                 // ══════════════════════════════════════════════════════

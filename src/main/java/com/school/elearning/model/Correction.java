@@ -18,7 +18,7 @@ public class Correction {
     private Date dateCorrection;
     
     @OneToOne(mappedBy = "correction")
-    private Examen examen;
+    private ExamenModule examen;
 
 //    @OneToOne @JoinColumn(name = "tentative_id")
 //    private Tentative tentative;

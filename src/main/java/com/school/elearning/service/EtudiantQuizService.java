@@ -28,8 +28,11 @@ public class EtudiantQuizService {
     private final ProgressionModuleRepository progressionRepository;
     private final ResultatRepository resultatRepository;
     private final NoteRepository noteRepository;
-    private final ModuleRepository moduleRepository;
     private final CoursRepository coursRepository;
+    private final CoursProgressionRepository coursProgressionRepository;
+    private final PassageExamenRepository passageExamenRepository;
+    private final ExamenEnseignantService examenEnseignantService;
+    private final CoursEtudiantService coursEtudiantService;
 
     // ══════════════════════════════════════════════════════════════
     // 1. LISTER LES QUIZ D'UN COURS
@@ -258,39 +261,89 @@ public class EtudiantQuizService {
         return score;
     }
 
+ // ══════════════════════════════════════════════════════════════
+    // DASHBOARD ÉTUDIANT — VERSION COMPLÈTE
+    // progressionGlobale = moyenne(% cours terminés, % quiz réussis, % examens corrigés)
     // ══════════════════════════════════════════════════════════════
-    // 7. DASHBOARD ÉTUDIANT
-    // ══════════════════════════════════════════════════════════════
-
+ 
     public DashboardEtudiantResponse getDashboard(Authentication auth) {
         Etudiant etudiant = getEtudiantConnecte(auth);
+ 
+        // ── Progression modules ──────────────────────────────────
         List<ProgressionModule> progressions = progressionRepository.findByEtudiant(etudiant);
-
-        int termines = (int) progressions.stream()
+        int modulesInscrits = progressions.size();
+        int modulesTermines = (int) progressions.stream()
                 .filter(p -> p.getStatut() == StatutProgression.TERMINE).count();
-
-        float progressionGlobale = progressions.isEmpty() ? 0 :
-                (float) progressions.stream()
-                        .mapToDouble(ProgressionModule::getPourcentageCompletude)
-                        .average().orElse(0);
-
-        String niveauNom = (etudiant.getCommunaute() != null
-                && etudiant.getCommunaute().getNiveau() != null)
-                ? etudiant.getCommunaute().getNiveau().getNom() : null;
-
+ 
         List<ProgressionModuleResponse> progressionResponses = progressions.stream()
                 .map(p -> toProgressionResponse(p, etudiant))
                 .collect(Collectors.toList());
-
+ 
+        // ── Derniers quiz ────────────────────────────────────────
         List<TentativeResponse> derniersQuizzes = tentativeRepository
                 .findTop5ByEtudiantOrderByDateDebutDesc(etudiant)
                 .stream().map(this::toTentativeResponse)
                 .collect(Collectors.toList());
-
+ 
+        // ── Derniers examens ─────────────────────────────────────
+        List<PassageExamenResponse> derniersExamens = passageExamenRepository
+                .findTop5ByEtudiantOrderByDateDebutDesc(etudiant)
+                .stream().map(p -> examenEnseignantService.toPassageResponse(p))
+                .collect(Collectors.toList());
+ 
+        // ── Cours récents ────────────────────────────────────────
+        List<CoursProgressionResponse> coursRecents = coursProgressionRepository
+                .findByEtudiant(etudiant).stream()
+                .sorted(java.util.Comparator.comparing(
+                        cp -> cp.getDateDerniereConsultation() != null
+                                ? cp.getDateDerniereConsultation()
+                                : cp.getDatePremierAcces(),
+                        java.util.Comparator.reverseOrder()))
+                .limit(5)
+                .map(coursEtudiantService::toResponse)
+                .collect(Collectors.toList());
+ 
+        // ── Progression globale combinée ─────────────────────────
+        // Composante 1 : % cours terminés / total cours accessibles
+        long totalCours = coursProgressionRepository.findByEtudiant(etudiant).size();
+        long coursTermines = coursProgressionRepository.findByEtudiant(etudiant).stream()
+                .filter(cp -> cp.getStatut() == com.school.elearning.model.enums.StatutCoursProgression.TERMINE)
+                .count();
+        float pctCours = totalCours > 0 ? (float) coursTermines / totalCours * 100f : 0f;
+ 
+        // Composante 2 : % quiz soumis (sur le total disponible dans le niveau)
+        long totalQuiz = tentativeRepository.findByEtudiantOrderByDateDebutDesc(etudiant).size();
+        long quizSoumis = tentativeRepository.findByEtudiantOrderByDateDebutDesc(etudiant).stream()
+                .filter(t -> t.getStatut() == StatutTentative.SOUMISE).count();
+        float pctQuiz = totalQuiz > 0 ? (float) quizSoumis / totalQuiz * 100f : 0f;
+ 
+        // Composante 3 : note moyenne des examens corrigés (ramenée sur 100)
+        float pctExamens = 0f;
+        List<PassageExamen> examensCoriges = passageExamenRepository
+                .findTop5ByEtudiantOrderByDateDebutDesc(etudiant).stream()
+                .filter(p -> p.getStatut() == com.school.elearning.model.enums.StatutPassageExamen.CORRIGE)
+                .collect(Collectors.toList());
+        if (!examensCoriges.isEmpty()) {
+            pctExamens = (float) examensCoriges.stream()
+                    .mapToDouble(p -> p.getNoteFinale() / 20.0 * 100.0)
+                    .average().orElse(0);
+        }
+ 
+        // Moyenne des 3 composantes (si aucune donnée → 0)
+        int nbComposantes = (totalCours > 0 ? 1 : 0) + (totalQuiz > 0 ? 1 : 0) + (!examensCoriges.isEmpty() ? 1 : 0);
+        float progressionGlobale = nbComposantes > 0
+                ? (pctCours + pctQuiz + pctExamens) / nbComposantes
+                : 0f;
+ 
+        String niveauNom = (etudiant.getCommunaute() != null
+                && etudiant.getCommunaute().getNiveau() != null)
+                ? etudiant.getCommunaute().getNiveau().getNom() : null;
+ 
         return new DashboardEtudiantResponse(
                 etudiant.getNom(), etudiant.getPrenom(), niveauNom,
-                progressions.size(), termines, progressionGlobale,
-                progressionResponses, derniersQuizzes
+                modulesInscrits, modulesTermines,
+                Math.round(progressionGlobale * 100f) / 100f,
+                progressionResponses, derniersQuizzes, derniersExamens, coursRecents
         );
     }
 
@@ -547,4 +600,7 @@ public class EtudiantQuizService {
         });
         return r;
     }
+    
+    
+    
 }
