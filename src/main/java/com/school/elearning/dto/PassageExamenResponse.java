@@ -9,6 +9,9 @@ import java.util.List;
 public class PassageExamenResponse {
 	
     private Long id;
+    private Long etudiantId;
+    private String etudiantNom;
+    private String etudiantPhoto;
     private Long examenId;
     private String examenTitre;
     private StatutPassageExamen statut;

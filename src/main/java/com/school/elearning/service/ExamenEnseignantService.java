@@ -312,6 +312,9 @@ public class ExamenEnseignantService {
     public PassageExamenResponse toPassageResponse(PassageExamen p) {
         PassageExamenResponse r = new PassageExamenResponse();
         r.setId(p.getId());
+        r.setEtudiantId(p.getEtudiant().getId());
+        r.setEtudiantNom(p.getEtudiant().getNom() + " " + p.getEtudiant().getPrenom());
+        r.setEtudiantPhoto(p.getEtudiant().getPhoto());
         r.setExamenId(p.getExamen().getId());
         r.setExamenTitre(p.getExamen().getTitre());
         r.setStatut(p.getStatut());

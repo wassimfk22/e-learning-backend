@@ -21,10 +21,6 @@ public class QuestionExamen {
     // Points accordés si juste
     private double points;
     
-    @OneToOne
-    @JoinColumn(name = "reponse_id")
-    private ReponseEtudiant reponse;
-
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "examen_id", nullable = false)
     private ExamenModule examen;
