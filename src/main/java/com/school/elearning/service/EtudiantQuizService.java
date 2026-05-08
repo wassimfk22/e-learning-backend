@@ -33,6 +33,7 @@ public class EtudiantQuizService {
     private final PassageExamenRepository passageExamenRepository;
     private final ExamenEnseignantService examenEnseignantService;
     private final CoursEtudiantService coursEtudiantService;
+    private final ExamenModuleRepository examenModuleRepository;
 
     // ══════════════════════════════════════════════════════════════
     // 1. LISTER LES QUIZ D'UN COURS
@@ -49,9 +50,6 @@ public class EtudiantQuizService {
 
     // ══════════════════════════════════════════════════════════════
     // 2. DÉMARRER LE QUIZ (passage unique)
-    //    - Vérifie que l'étudiant n'a pas déjà passé ce quiz
-    //    - Crée la TentativeQuiz EN_COURS avec dateExpiration
-    //    - Tire aléatoirement le bon nombre de questions
     // ══════════════════════════════════════════════════════════════
 
     @Transactional
@@ -61,26 +59,21 @@ public class EtudiantQuizService {
 
         verifierAccesCours(etudiant, quiz.getCours().getId());
 
-        // Vérifier passage unique : déjà soumis → refus définitif
         Optional<TentativeQuiz> existante = tentativeRepository.findByEtudiantAndQuiz(etudiant, quiz);
         if (existante.isPresent()) {
             TentativeQuiz t = existante.get();
             if (t.getStatut() == StatutTentative.SOUMISE) {
                 throw new RuntimeException("Vous avez déjà passé ce quiz. Le quiz ne peut être passé qu'une seule fois.");
             }
-            // Session EN_COURS encore valide → renvoyer la tentative existante
             if (!t.estExpiree()) {
                 return toTentativeResponse(t);
             }
-            // Session EN_COURS expirée → soumettre automatiquement
             return toTentativeResponse(soumettreAutomatiquement(t));
         }
 
-        // Calcul du score max sur les questions qui seront affichées
         List<QuestionQuiz> toutesQuestions = quiz.getQuestions();
         int nbAfficher = Math.min(quiz.getNombreQuestions(), toutesQuestions.size());
 
-        // Pioche aléatoire
         List<QuestionQuiz> questionsSelectionnees = new ArrayList<>(toutesQuestions);
         Collections.shuffle(questionsSelectionnees);
         questionsSelectionnees = questionsSelectionnees.subList(0, nbAfficher);
@@ -88,7 +81,6 @@ public class EtudiantQuizService {
         double scoreMax = questionsSelectionnees.stream()
                 .mapToDouble(QuestionQuiz::getPoints).sum();
 
-        // Création de la tentative
         LocalDateTime maintenant = LocalDateTime.now();
         TentativeQuiz tentative = new TentativeQuiz();
         tentative.setEtudiant(etudiant);
@@ -105,7 +97,6 @@ public class EtudiantQuizService {
 
     // ══════════════════════════════════════════════════════════════
     // 3. RÉCUPÉRER LES QUESTIONS DE LA TENTATIVE EN COURS
-    //    Appelé après demarrerQuiz pour afficher les questions
     // ══════════════════════════════════════════════════════════════
 
     public List<QuestionEtudiantResponse> getQuestionsDeTentative(Long tentativeId, Authentication auth) {
@@ -118,8 +109,6 @@ public class EtudiantQuizService {
         List<QuestionQuiz> toutesQuestions = quiz.getQuestions();
         int nbAfficher = Math.min(quiz.getNombreQuestions(), toutesQuestions.size());
 
-        // On reproduit la même pioche déterministe grâce à la seed = id de la tentative
-        // → même ordre garanti entre les appels
         List<QuestionQuiz> questions = new ArrayList<>(toutesQuestions);
         Collections.shuffle(questions, new Random(tentative.getId()));
         questions = questions.subList(0, nbAfficher);
@@ -135,8 +124,7 @@ public class EtudiantQuizService {
     }
 
     // ══════════════════════════════════════════════════════════════
-    // 4. SOUMETTRE TOUTES LES RÉPONSES EN UNE FOIS (fin de quiz)
-    //    L'étudiant envoie la liste complète de ses réponses + clique "Terminer"
+    // 4. SOUMETTRE TOUTES LES RÉPONSES EN UNE FOIS
     // ══════════════════════════════════════════════════════════════
 
     @Transactional
@@ -150,15 +138,12 @@ public class EtudiantQuizService {
             throw new RuntimeException("Ce quiz a déjà été soumis.");
         }
 
-        // Si le temps est expiré → on traite quand même les réponses envoyées
         boolean soumisParExpiration = tentative.estExpiree();
 
-        // Enregistrer les réponses
         for (ReponseQuizRequest req : reponses) {
             QuestionQuiz question = questionQuizRepository.findById(req.getQuestionId())
                     .orElseThrow(() -> new RuntimeException("Question introuvable : " + req.getQuestionId()));
 
-            // On n'enregistre pas deux fois la même question
             if (reponseRepository.existsByTentativeAndQuestion(tentative, question)) {
                 continue;
             }
@@ -175,21 +160,18 @@ public class EtudiantQuizService {
             reponseRepository.save(reponse);
         }
 
-        // Calcul du score final
         double scoreObtenu = reponseRepository.sumPointsByTentative(tentative);
         double scoreMax = tentative.getScoreMax();
         double pourcentage = scoreMax > 0
                 ? Math.round((scoreObtenu / scoreMax) * 10000.0) / 100.0
                 : 0;
 
-        // Mise à jour de la tentative
         tentative.setScoreObtenu(scoreObtenu);
         tentative.setPourcentage(pourcentage);
         tentative.setStatut(StatutTentative.SOUMISE);
         tentative.setDateSoumission(LocalDateTime.now());
         tentativeRepository.save(tentative);
 
-        // Mise à jour résultats et progression
         mettreAJourResultatEtProgression(tentative);
 
         String message = genererMessage(pourcentage, soumisParExpiration);
@@ -206,8 +188,7 @@ public class EtudiantQuizService {
     }
 
     // ══════════════════════════════════════════════════════════════
-    // 5. SOUMISSION AUTOMATIQUE PAR EXPIRATION DU CHRONO
-    //    Appelé quand l'étudiant revient sur une tentative expirée
+    // 5. SOUMISSION AUTOMATIQUE PAR EXPIRATION
     // ══════════════════════════════════════════════════════════════
 
     @Transactional
@@ -237,7 +218,7 @@ public class EtudiantQuizService {
     }
 
     // ══════════════════════════════════════════════════════════════
-    // 6. RÉSULTAT D'UN QUIZ PASSÉ (lecture seule)
+    // 6. RÉSULTAT D'UN QUIZ PASSÉ
     // ══════════════════════════════════════════════════════════════
 
     public ScoreFinaleResponse getResultat(Long quizId, Authentication auth) {
@@ -261,90 +242,200 @@ public class EtudiantQuizService {
         return score;
     }
 
- // ══════════════════════════════════════════════════════════════
-    // DASHBOARD ÉTUDIANT — VERSION COMPLÈTE
-    // progressionGlobale = moyenne(% cours terminés, % quiz réussis, % examens corrigés)
     // ══════════════════════════════════════════════════════════════
- 
+    // DASHBOARD ÉTUDIANT — VERSION CORRIGÉE
+    //
+    // - modulesInscrits / modulesTermines : basés sur ProgressionModule
+    //   (auto-créées à l'accès aux cours + ProgressionService manuel)
+    // - progressionGlobale : moyenne pondérée des 3 composantes
+    //   (cours terminés, quiz soumis, examens corrigés)
+    //   calculée par module puis moyennée — ou globalement si pas de modules
+    // ══════════════════════════════════════════════════════════════
+
     public DashboardEtudiantResponse getDashboard(Authentication auth) {
         Etudiant etudiant = getEtudiantConnecte(auth);
- 
-        // ── Progression modules ──────────────────────────────────
-        List<ProgressionModule> progressions = progressionRepository.findByEtudiant(etudiant);
-        int modulesInscrits = progressions.size();
-        int modulesTermines = (int) progressions.stream()
+
+        // ── 1. Retrouver tous les modules touchés par l'étudiant ──────
+        // Combine : ProgressionModule existantes + modules déduits des CoursProgression
+        Set<Long> moduleIdsConnus = new HashSet<>();
+
+        // Modules via inscription explicite ou auto
+        List<ProgressionModule> progressionModules = progressionRepository.findByEtudiant(etudiant);
+        progressionModules.forEach(p -> moduleIdsConnus.add(p.getModule().getId()));
+
+        // Modules déduits des cours consultés (pour l'étudiant pas encore inscrit via ProgressionService)
+        List<CoursProgression> toutesCoursProgressions = coursProgressionRepository.findByEtudiant(etudiant);
+        toutesCoursProgressions.forEach(cp -> moduleIdsConnus.add(cp.getCours().getModule().getId()));
+
+        // ── 2. S'assurer que chaque module touché a une ProgressionModule ──
+        // (au cas où des modules ont été accédés avant ce fix)
+        for (CoursProgression cp : toutesCoursProgressions) {
+            Module module = cp.getCours().getModule();
+            if (!progressionRepository.existsByEtudiantAndModule(etudiant, module)) {
+                coursEtudiantService.autoInscrireAuModule(etudiant, module);
+                // Recalculer pour ce module
+                coursEtudiantService.mettreAJourProgressionModule(etudiant, module);
+            }
+        }
+
+        // Recharger après éventuelles créations
+        progressionModules = progressionRepository.findByEtudiant(etudiant);
+
+        // ── 3. Stats modules ──────────────────────────────────────────
+        int modulesInscrits = progressionModules.size();
+        int modulesTermines = (int) progressionModules.stream()
                 .filter(p -> p.getStatut() == StatutProgression.TERMINE).count();
- 
-        List<ProgressionModuleResponse> progressionResponses = progressions.stream()
+
+        // ── 4. Progression par module (réponse détaillée) ─────────────
+        List<ProgressionModuleResponse> progressionResponses = progressionModules.stream()
                 .map(p -> toProgressionResponse(p, etudiant))
                 .collect(Collectors.toList());
- 
-        // ── Derniers quiz ────────────────────────────────────────
+
+        // ── 5. Calcul de la progressionGlobale ────────────────────────
+        // On calcule par module pour être précis, puis on moyenne
+        float progressionGlobale = calculerProgressionGlobale(etudiant, progressionModules);
+
+        // ── 6. Derniers quiz ──────────────────────────────────────────
         List<TentativeResponse> derniersQuizzes = tentativeRepository
                 .findTop5ByEtudiantOrderByDateDebutDesc(etudiant)
                 .stream().map(this::toTentativeResponse)
                 .collect(Collectors.toList());
- 
-        // ── Derniers examens ─────────────────────────────────────
+
+        // ── 7. Derniers examens ───────────────────────────────────────
         List<PassageExamenResponse> derniersExamens = passageExamenRepository
                 .findTop5ByEtudiantOrderByDateDebutDesc(etudiant)
                 .stream().map(p -> examenEnseignantService.toPassageResponse(p))
                 .collect(Collectors.toList());
- 
-        // ── Cours récents ────────────────────────────────────────
-        List<CoursProgressionResponse> coursRecents = coursProgressionRepository
-                .findByEtudiant(etudiant).stream()
-                .sorted(java.util.Comparator.comparing(
+
+        // ── 8. Cours récents ──────────────────────────────────────────
+        List<CoursProgressionResponse> coursRecents = toutesCoursProgressions.stream()
+                .sorted(Comparator.comparing(
                         cp -> cp.getDateDerniereConsultation() != null
                                 ? cp.getDateDerniereConsultation()
                                 : cp.getDatePremierAcces(),
-                        java.util.Comparator.reverseOrder()))
+                        Comparator.reverseOrder()))
                 .limit(5)
                 .map(coursEtudiantService::toResponse)
                 .collect(Collectors.toList());
- 
-        // ── Progression globale combinée ─────────────────────────
-        // Composante 1 : % cours terminés / total cours accessibles
-        long totalCours = coursProgressionRepository.findByEtudiant(etudiant).size();
-        long coursTermines = coursProgressionRepository.findByEtudiant(etudiant).stream()
-                .filter(cp -> cp.getStatut() == com.school.elearning.model.enums.StatutCoursProgression.TERMINE)
-                .count();
-        float pctCours = totalCours > 0 ? (float) coursTermines / totalCours * 100f : 0f;
- 
-        // Composante 2 : % quiz soumis (sur le total disponible dans le niveau)
-        long totalQuiz = tentativeRepository.findByEtudiantOrderByDateDebutDesc(etudiant).size();
-        long quizSoumis = tentativeRepository.findByEtudiantOrderByDateDebutDesc(etudiant).stream()
-                .filter(t -> t.getStatut() == StatutTentative.SOUMISE).count();
-        float pctQuiz = totalQuiz > 0 ? (float) quizSoumis / totalQuiz * 100f : 0f;
- 
-        // Composante 3 : note moyenne des examens corrigés (ramenée sur 100)
-        float pctExamens = 0f;
-        List<PassageExamen> examensCoriges = passageExamenRepository
-                .findTop5ByEtudiantOrderByDateDebutDesc(etudiant).stream()
-                .filter(p -> p.getStatut() == com.school.elearning.model.enums.StatutPassageExamen.CORRIGE)
-                .collect(Collectors.toList());
-        if (!examensCoriges.isEmpty()) {
-            pctExamens = (float) examensCoriges.stream()
-                    .mapToDouble(p -> p.getNoteFinale() / 20.0 * 100.0)
-                    .average().orElse(0);
-        }
- 
-        // Moyenne des 3 composantes (si aucune donnée → 0)
-        int nbComposantes = (totalCours > 0 ? 1 : 0) + (totalQuiz > 0 ? 1 : 0) + (!examensCoriges.isEmpty() ? 1 : 0);
-        float progressionGlobale = nbComposantes > 0
-                ? (pctCours + pctQuiz + pctExamens) / nbComposantes
-                : 0f;
- 
+
+        // ── 9. Niveau ─────────────────────────────────────────────────
         String niveauNom = (etudiant.getCommunaute() != null
                 && etudiant.getCommunaute().getNiveau() != null)
                 ? etudiant.getCommunaute().getNiveau().getNom() : null;
- 
+
         return new DashboardEtudiantResponse(
                 etudiant.getNom(), etudiant.getPrenom(), niveauNom,
                 modulesInscrits, modulesTermines,
                 Math.round(progressionGlobale * 100f) / 100f,
                 progressionResponses, derniersQuizzes, derniersExamens, coursRecents
         );
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // CALCUL PROGRESSION GLOBALE
+    // Pour chaque module inscrit :
+    //   - % cours terminés
+    //   - % quiz soumis (du module)
+    //   - % examens corrigés (du module)
+    // Moyenne de ces 3 composantes par module, puis moyenne des modules
+    // ══════════════════════════════════════════════════════════════
+
+    private float calculerProgressionGlobale(Etudiant etudiant, List<ProgressionModule> progressionModules) {
+        if (progressionModules.isEmpty()) {
+            // Fallback : on regarde juste les cours/quiz globaux
+            return calculerProgressionFallback(etudiant);
+        }
+
+        float totalProgression = 0f;
+        int nbModulesAvecDonnees = 0;
+
+        for (ProgressionModule pm : progressionModules) {
+            Module module = pm.getModule();
+            float progressionModule = calculerProgressionDuModule(etudiant, module);
+            totalProgression += progressionModule;
+            nbModulesAvecDonnees++;
+        }
+
+        return nbModulesAvecDonnees > 0 ? totalProgression / nbModulesAvecDonnees : 0f;
+    }
+
+    private float calculerProgressionDuModule(Etudiant etudiant, Module module) {
+        float totalComposantes = 0f;
+        int nbComposantes = 0;
+
+        // Composante 1 : Cours terminés
+        long totalCours = module.getCours() != null ? module.getCours().size() : 0;
+        if (totalCours > 0) {
+            long coursTermines = coursProgressionRepository
+                    .findTerminesParModuleId(etudiant, module.getId()).size();
+            float pctCours = (float) coursTermines / totalCours * 100f;
+            totalComposantes += pctCours;
+            nbComposantes++;
+        }
+
+        // Composante 2 : Quiz soumis du module
+        List<TentativeQuiz> tentativesModule = tentativeRepository
+                .findByEtudiantAndModuleId(etudiant, module.getId());
+        long totalQuizModule = module.getCours() != null
+                ? module.getCours().stream()
+                        .flatMap(c -> c.getQuizzes() != null ? c.getQuizzes().stream() : java.util.stream.Stream.empty())
+                        .count()
+                : 0;
+        if (totalQuizModule > 0) {
+            long quizSoumisModule = tentativesModule.stream()
+                    .filter(t -> t.getStatut() == StatutTentative.SOUMISE).count();
+            float pctQuiz = (float) quizSoumisModule / totalQuizModule * 100f;
+            totalComposantes += pctQuiz;
+            nbComposantes++;
+        }
+
+        // Composante 3 : Examens corrigés du module
+        List<PassageExamen> examensModule = passageExamenRepository
+                .findCorigesParModuleId(etudiant, module.getId());
+        // Total examens du module — on passe par le repo pour éviter le problème
+        // d'instanciation de la classe abstraite Evaluation
+        long totalExamensModule = examenModuleRepository.findByModuleId(module.getId()).size();
+        if (totalExamensModule > 0) {
+            long examensCorrigesModule = examensModule.size();
+            float pctExamens = (float) examensCorrigesModule / totalExamensModule * 100f;
+            // Bonus : si corrigé, utiliser la note moyenne ramenée sur 100
+            if (!examensModule.isEmpty()) {
+                float noteMoyenne = (float) examensModule.stream()
+                        .mapToDouble(p -> p.getNoteFinale() / 20.0 * 100.0)
+                        .average().orElse(0);
+                pctExamens = noteMoyenne;
+            }
+            totalComposantes += pctExamens;
+            nbComposantes++;
+        }
+
+        return nbComposantes > 0 ? totalComposantes / nbComposantes : 0f;
+    }
+
+    private float calculerProgressionFallback(Etudiant etudiant) {
+        // Utilisé quand l'étudiant n'a aucune ProgressionModule (ancien comportement)
+        List<CoursProgression> toutesCP = coursProgressionRepository.findByEtudiant(etudiant);
+        long totalCours = toutesCP.size();
+        long coursTermines = toutesCP.stream()
+                .filter(cp -> cp.getStatut() == StatutCoursProgression.TERMINE).count();
+        float pctCours = totalCours > 0 ? (float) coursTermines / totalCours * 100f : 0f;
+
+        List<TentativeQuiz> toutesT = tentativeRepository.findByEtudiantOrderByDateDebutDesc(etudiant);
+        long totalQuiz = toutesT.size();
+        long quizSoumis = toutesT.stream()
+                .filter(t -> t.getStatut() == StatutTentative.SOUMISE).count();
+        float pctQuiz = totalQuiz > 0 ? (float) quizSoumis / totalQuiz * 100f : 0f;
+
+        List<PassageExamen> examensCoriges = passageExamenRepository
+                .findTop5ByEtudiantOrderByDateDebutDesc(etudiant).stream()
+                .filter(p -> p.getStatut() == StatutPassageExamen.CORRIGE)
+                .collect(Collectors.toList());
+        float pctExamens = examensCoriges.isEmpty() ? 0f : (float) examensCoriges.stream()
+                .mapToDouble(p -> p.getNoteFinale() / 20.0 * 100.0)
+                .average().orElse(0);
+
+        int nbC = (totalCours > 0 ? 1 : 0) + (totalQuiz > 0 ? 1 : 0) + (!examensCoriges.isEmpty() ? 1 : 0);
+        return nbC > 0 ? (pctCours + pctQuiz + pctExamens) / nbC : 0f;
     }
 
     // ══════════════════════════════════════════════════════════════
@@ -361,7 +452,7 @@ public class EtudiantQuizService {
         tentative.setScoreObtenu(scoreObtenu);
         tentative.setPourcentage(pourcentage);
         tentative.setStatut(StatutTentative.SOUMISE);
-        tentative.setDateSoumission(tentative.getDateExpiration()); // soumis à l'expiration
+        tentative.setDateSoumission(tentative.getDateExpiration());
         TentativeQuiz sauvee = tentativeRepository.save(tentative);
 
         mettreAJourResultatEtProgression(sauvee);
@@ -369,7 +460,7 @@ public class EtudiantQuizService {
     }
 
     // ══════════════════════════════════════════════════════════════
-    // MISE À JOUR RÉSULTAT + PROGRESSION
+    // MISE À JOUR RÉSULTAT + PROGRESSION après quiz soumis
     // ══════════════════════════════════════════════════════════════
 
     @Transactional
@@ -377,12 +468,14 @@ public class EtudiantQuizService {
         Etudiant etudiant = tentative.getEtudiant();
         Module module = tentative.getQuiz().getCours().getModule();
 
+        // S'assurer que l'inscription au module existe
+        coursEtudiantService.autoInscrireAuModule(etudiant, module);
+
         double scoreMax = tentative.getScoreMax();
         float noteSur20 = scoreMax > 0
                 ? (float) Math.round((tentative.getScoreObtenu() / scoreMax) * 20 * 100) / 100f
                 : 0f;
 
-        // Récupérer ou créer le Resultat
         Resultat resultat = resultatRepository
                 .findByEtudiantIdAndModuleId(etudiant.getId(), module.getId())
                 .orElseGet(() -> {
@@ -395,7 +488,6 @@ public class EtudiantQuizService {
                     return resultatRepository.save(r);
                 });
 
-        // Créer la Note
         Note note = new Note();
         note.setValeur(noteSur20);
         note.setDateObtention(new java.util.Date());
@@ -403,8 +495,6 @@ public class EtudiantQuizService {
         note.setResultat(resultat);
         noteRepository.save(note);
 
-        // Recalculer la moyenne des quiz du module
-        // Chaque quiz est passé une seule fois → moyenne directe
         List<TentativeQuiz> tentativesModule = tentativeRepository
                 .findByEtudiantAndModuleId(etudiant, module.getId());
 
@@ -418,21 +508,25 @@ public class EtudiantQuizService {
         resultat.setMoyenneGenerale((nouvelleMoyenne + resultat.getMoyenneExamens()) / 2);
         resultatRepository.save(resultat);
 
-        // Mettre à jour la ProgressionModule
+        // Mettre à jour la ProgressionModule (composante quiz)
         progressionRepository.findByEtudiant(etudiant).stream()
                 .filter(p -> p.getModule().getId().equals(module.getId()))
                 .findFirst()
                 .ifPresent(progression -> {
-                    // Calcul : combien de quiz du module ont été soumis ?
                     long totalQuizzes = module.getCours().stream()
-                            .flatMap(c -> c.getQuizzes().stream()).count();
-                    long quizzesSoumis = tentativesModule.size();
+                            .flatMap(c -> c.getQuizzes() != null ? c.getQuizzes().stream() : java.util.stream.Stream.empty())
+                            .count();
+                    long quizzesSoumis = tentativesModule.stream()
+                            .filter(t -> t.getStatut() == StatutTentative.SOUMISE).count();
 
-                    float completude = totalQuizzes > 0
-                            ? (float) quizzesSoumis / totalQuizzes * 100f : 0f;
-                    progression.setPourcentageCompletude(completude);
+                    if (totalQuizzes > 0) {
+                        float completudeQuiz = (float) quizzesSoumis / totalQuizzes * 100f;
+                        // Combine avec la progression cours déjà calculée
+                        float actuel = progression.getPourcentageCompletude();
+                        progression.setPourcentageCompletude(Math.max(actuel, completudeQuiz));
+                    }
 
-                    if (completude >= 100f) {
+                    if (progression.getPourcentageCompletude() >= 100f) {
                         progression.setStatut(StatutProgression.TERMINE);
                     } else if (progression.getStatut() == StatutProgression.NON_COMMENCE) {
                         progression.setStatut(StatutProgression.EN_COURS);
@@ -461,7 +555,6 @@ public class EtudiantQuizService {
             throw new RuntimeException("Ce quiz a déjà été soumis.");
         }
         if (tentative.estExpiree()) {
-            // On soumet automatiquement et on informe
             soumettreAutomatiquement(tentative);
             throw new RuntimeException("Le temps est écoulé. Le quiz a été soumis automatiquement.");
         }
@@ -522,7 +615,6 @@ public class EtudiantQuizService {
         double pointsTotal = quiz.getQuestions().stream()
                 .mapToDouble(QuestionQuiz::getPoints).sum();
 
-        // Questions (sans bonneReponse) — tirage déterministe si tentative en cours
         List<QuestionEtudiantResponse> questions = new ArrayList<>();
         if (!dejaPasse) {
             List<QuestionQuiz> pool = new ArrayList<>(quiz.getQuestions());
@@ -585,22 +677,68 @@ public class EtudiantQuizService {
     private ProgressionModuleResponse toProgressionResponse(ProgressionModule p, Etudiant etudiant) {
         Optional<Resultat> resultat = resultatRepository
                 .findByEtudiantIdAndModuleId(etudiant.getId(), p.getModule().getId());
+
+        Module module = p.getModule();
+
         ProgressionModuleResponse r = new ProgressionModuleResponse();
         r.setId(p.getId());
-        r.setModuleId(p.getModule().getId());
-        r.setModuleTitre(p.getModule().getTitre());
-        r.setNiveauNom(p.getModule().getNiveau() != null ? p.getModule().getNiveau().getNom() : null);
+        r.setModuleId(module.getId());
+        r.setModuleTitre(module.getTitre());
+        r.setNiveauNom(module.getNiveau() != null ? module.getNiveau().getNom() : null);
         r.setStatut(p.getStatut());
         r.setPourcentageCompletude(p.getPourcentageCompletude());
         r.setDateInscription(p.getDateInscription());
+
         resultat.ifPresent(res -> {
             r.setMoyenneQuizs(res.getMoyenneQuizs());
             r.setMoyenneExamens(res.getMoyenneExamens());
             r.setMoyenneGenerale(res.getMoyenneGenerale());
         });
+
+        // ── Stats cours ───────────────────────────────────────────
+        int totalCours = module.getCours() != null ? module.getCours().size() : 0;
+        List<CoursProgression> terminesCP = coursProgressionRepository
+                .findTerminesParModuleId(etudiant, module.getId());
+        long consultesCount = coursProgressionRepository
+                .countByEtudiantAndModuleId(etudiant, module.getId());
+        int coursTerminesCount = terminesCP.size();
+        int coursEnCoursCount = (int) (consultesCount - coursTerminesCount);
+
+        r.setTotalCours(totalCours);
+        r.setCoursTermines(coursTerminesCount);
+        r.setCoursEnCours(Math.max(0, coursEnCoursCount));
+        r.setPourcentageCours(totalCours > 0 ? (float) coursTerminesCount / totalCours * 100f : 0f);
+
+        // ── Stats quiz ────────────────────────────────────────────
+        long totalQuizModule = module.getCours() != null
+                ? module.getCours().stream()
+                        .flatMap(c -> c.getQuizzes() != null ? c.getQuizzes().stream() : java.util.stream.Stream.empty())
+                        .count()
+                : 0;
+        List<TentativeQuiz> tentativesModule = tentativeRepository
+                .findByEtudiantAndModuleId(etudiant, module.getId());
+        long quizSoumisCount = tentativesModule.stream()
+                .filter(t -> t.getStatut() == StatutTentative.SOUMISE).count();
+
+        r.setTotalQuiz((int) totalQuizModule);
+        r.setQuizSoumis((int) quizSoumisCount);
+        r.setPourcentageQuiz(totalQuizModule > 0 ? (float) quizSoumisCount / totalQuizModule * 100f : 0f);
+
+        // ── Stats examens ─────────────────────────────────────────
+        long totalExamensModule = examenModuleRepository.findByModuleId(module.getId()).size();
+        List<PassageExamen> examensCorrigesModule = passageExamenRepository
+                .findCorigesParModuleId(etudiant, module.getId());
+        float pctExamens = 0f;
+        if (!examensCorrigesModule.isEmpty()) {
+            pctExamens = (float) examensCorrigesModule.stream()
+                    .mapToDouble(pe -> pe.getNoteFinale() / 20.0 * 100.0)
+                    .average().orElse(0);
+        }
+
+        r.setTotalExamens((int) totalExamensModule);
+        r.setExamensCorrigesCount(examensCorrigesModule.size());
+        r.setPourcentageExamens(pctExamens);
+
         return r;
     }
-    
-    
-    
 }

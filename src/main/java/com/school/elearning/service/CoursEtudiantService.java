@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.Date;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -29,10 +30,9 @@ public class CoursEtudiantService {
     private final ModuleRepository moduleRepository;
 
     // ══════════════════════════════════════════════════════════════
-    // 1. ACCÉDER À UN COURS (déclenche le suivi automatiquement)
-    //    - Vérifie que l'étudiant a accès au cours (via son niveau)
+    // 1. ACCÉDER À UN COURS
+    //    - Auto-inscrit l'étudiant au module si pas encore inscrit
     //    - Crée ou met à jour sa CoursProgression
-    //    - Retourne le contenu du cours
     // ══════════════════════════════════════════════════════════════
 
     @Transactional
@@ -43,7 +43,10 @@ public class CoursEtudiantService {
 
         verifierAccesCours(etudiant, cours);
 
-        // Créer ou mettre à jour la progression du cours
+        // ── Auto-inscription au module ──────────────────────────
+        autoInscrireAuModule(etudiant, cours.getModule());
+
+        // ── Créer ou mettre à jour la CoursProgression ──────────
         CoursProgression cp = coursProgressionRepository
                 .findByEtudiantIdAndCoursId(etudiant.getId(), coursId)
                 .orElseGet(() -> {
@@ -57,7 +60,7 @@ public class CoursEtudiantService {
         cp.setDateDerniereConsultation(LocalDateTime.now());
         coursProgressionRepository.save(cp);
 
-        // Mettre à jour la ProgressionModule si elle existe
+        // Recalculer la progression du module
         mettreAJourProgressionModule(etudiant, cours.getModule());
 
         return CoursMapper.toResponse(cours);
@@ -108,7 +111,7 @@ public class CoursEtudiantService {
                                 r.setDateDerniereConsultation(cp.getDateDerniereConsultation());
                                 r.setDateTermine(cp.getDateTermine());
                             },
-                            () -> r.setStatut(null) // null = jamais consulté
+                            () -> r.setStatut(null)
                     );
             return r;
         }).collect(Collectors.toList());
@@ -126,16 +129,33 @@ public class CoursEtudiantService {
     }
 
     // ══════════════════════════════════════════════════════════════
-    // MISE À JOUR PROGRESSION MODULE (combiné cours + quiz + examens)
+    // AUTO-INSCRIPTION AU MODULE
+    // Crée une ProgressionModule si elle n'existe pas encore
     // ══════════════════════════════════════════════════════════════
 
-    /**
-     * Calcule le % de complétion d'un module basé sur les cours terminés.
-     * La progression globale (quiz + examens) est gérée dans EtudiantQuizService
-     * et ExamenEtudiantService qui appellent aussi cette logique.
-     */
+    @Transactional
+    public void autoInscrireAuModule(Etudiant etudiant, Module module) {
+        boolean dejaInscrit = progressionModuleRepository.existsByEtudiantAndModule(etudiant, module);
+        if (!dejaInscrit) {
+            ProgressionModule progression = new ProgressionModule();
+            progression.setEtudiant(etudiant);
+            progression.setModule(module);
+            progression.setDateInscription(new Date());
+            progression.setStatut(StatutProgression.EN_COURS);
+            progression.setPourcentageCompletude(0f);
+            progressionModuleRepository.save(progression);
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // MISE À JOUR PROGRESSION MODULE basée sur les cours terminés
+    // ══════════════════════════════════════════════════════════════
+
     @Transactional
     public void mettreAJourProgressionModule(Etudiant etudiant, Module module) {
+        // S'assurer que l'inscription existe
+        autoInscrireAuModule(etudiant, module);
+
         progressionModuleRepository.findByEtudiant(etudiant).stream()
                 .filter(p -> p.getModule().getId().equals(module.getId()))
                 .findFirst()
@@ -146,11 +166,9 @@ public class CoursEtudiantService {
                     long coursTermines = coursProgressionRepository
                             .findTerminesParModuleId(etudiant, module.getId()).size();
 
-                    // % basé sur les cours terminés (la partie quiz/examens s'y ajoute via les autres services)
                     float completudeCours = (float) coursTermines / totalCours * 100f;
 
-                    // On prend le max entre l'ancienne valeur et la nouvelle
-                    // (évite de réduire si d'autres composantes avaient déjà avancé)
+                    // On prend le max pour ne pas réduire si quiz/examens ont déjà avancé
                     progression.setPourcentageCompletude(
                             Math.max(progression.getPourcentageCompletude(), completudeCours));
 
@@ -207,11 +225,10 @@ public class CoursEtudiantService {
         return r;
     }
 
-    // DTO interne pour la liste des cours d'un module avec statut
     @lombok.Data
     public static class CoursAvecStatutResponse {
         private CoursResponse cours;
-        private StatutCoursProgression statut; // null = jamais consulté
+        private StatutCoursProgression statut;
         private LocalDateTime dateDerniereConsultation;
         private LocalDateTime dateTermine;
     }
