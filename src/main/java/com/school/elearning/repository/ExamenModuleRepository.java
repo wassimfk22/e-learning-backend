@@ -17,6 +17,7 @@ public interface ExamenModuleRepository extends JpaRepository<ExamenModule, Long
 
     boolean existsByTitreAndModuleId(String titre, Long moduleId);
     
-    
+ // NOUVEAU : Pour trouver tous les examens d'un niveau spécifique
+    List<ExamenModule> findByModule_Niveau_Id(Long niveauId);
     
 }

@@ -18,6 +18,11 @@ public class Niveau {
     
     private String filiere;
     private String annee;
+    
+    @ManyToOne
+    @JoinColumn ( name = "moderateur_id" )
+    @JsonIgnore
+    private Moderateur moderateur;
 
     // Chaque niveau contient une liste des modules
     @OneToMany(mappedBy = "niveau", cascade = CascadeType.ALL, orphanRemoval = true)

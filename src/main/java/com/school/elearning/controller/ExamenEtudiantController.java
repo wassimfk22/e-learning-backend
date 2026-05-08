@@ -30,6 +30,14 @@ import java.util.List;
 public class ExamenEtudiantController {
 
     private final ExamenEtudiantService examenEtudiantService;
+    
+    // GET /api/etudiant/examens/mon-niveau
+    // Retourne TOUS les examens du niveau de l'étudiant (tous modules confondus)
+    @GetMapping("/mon-niveau")
+    public ResponseEntity<List<ExamenEtudiantService.ExamenAvecStatutResponse>> getTousLesExamensDuNiveau(
+            Authentication auth) {
+        return ResponseEntity.ok(examenEtudiantService.getAllExamensMonNiveau(auth));
+    }
 
     // GET /api/etudiant/examens/module/{moduleId}
     // Retourne les examens avec statut : dejaPasse, noteFinale si corrigé

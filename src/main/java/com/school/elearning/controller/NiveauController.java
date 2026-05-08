@@ -3,6 +3,7 @@
 // ════════════════════════════════════════════════════
 package com.school.elearning.controller;
  
+import com.school.elearning.dto.NiveauRequest;
 import com.school.elearning.model.Niveau;
 import com.school.elearning.service.NiveauService;
 import lombok.RequiredArgsConstructor;
@@ -32,11 +33,9 @@ public class NiveauController {
     }
  
     // POST /api/niveaux — Rôle: ADMIN ou MODERATEUR
-    // Body: { "nom": "Licence 3", "filiere": "Informatique", "annee": "2024-2025" }
     @PostMapping
-    public ResponseEntity<Niveau> creer(Authentication auth, @RequestBody Map<String, String> body) {
-        return ResponseEntity.ok(niveauService.creerNiveau(
-        		auth, body.get("nom"), body.get("filiere"), body.get("annee")));
+    public ResponseEntity<Niveau> creer(Authentication auth, @RequestBody NiveauRequest request) {
+        return ResponseEntity.ok(niveauService.creerNiveau(auth, request));
     }
  
     // PUT /api/niveaux/{id}

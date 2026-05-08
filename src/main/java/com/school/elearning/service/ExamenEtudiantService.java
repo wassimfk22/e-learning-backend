@@ -174,6 +174,44 @@ public class ExamenEtudiantService {
 
         return examenEnseignantService.toPassageResponse(passage);
     }
+    
+	 // ══════════════════════════════════════════════════════════════
+	 // 6. LISTER TOUS LES EXAMENS DU NIVEAU DE L'ÉTUDIANT
+	 // ══════════════════════════════════════════════════════════════
+	
+	 public List<ExamenAvecStatutResponse> getAllExamensMonNiveau(Authentication auth) {
+	     Etudiant etudiant = getEtudiantConnecte(auth);
+	
+	     // 1. Récupérer le niveau de l'étudiant (via sa communauté)
+	     if (etudiant.getCommunaute() == null || etudiant.getCommunaute().getNiveau() == null) {
+	         throw new RuntimeException("Vous n'êtes affecté à aucun niveau.");
+	     }
+	     Long niveauId = etudiant.getCommunaute().getNiveau().getId();
+	
+	     // 2. Récupérer tous les examens qui appartiennent aux modules de ce niveau
+	     // Supposons que tu as une méthode findByModule_Niveau_Id dans ton repository
+	     List<ExamenModule> examensNiveau = examenRepository.findByModule_Niveau_Id(niveauId);
+	
+	     // 3. Mapper vers la réponse avec le statut de l'étudiant
+	     return examensNiveau.stream().map(examen -> {
+	         ExamenAvecStatutResponse r = new ExamenAvecStatutResponse();
+	         r.setExamen(examenEnseignantService.toExamenResponse(examen));
+	
+	         passageRepository.findByEtudiantAndExamen(etudiant, examen).ifPresentOrElse(
+	             passage -> {
+	                 r.setStatut(passage.getStatut());
+	                 r.setPassageId(passage.getId());
+	                 r.setNoteFinale(passage.getNoteFinale());
+	                 r.setDejaPasse(true);
+	             },
+	             () -> {
+	                 r.setDejaPasse(false);
+	                 r.setStatut(null);
+	             }
+	         );
+	         return r;
+	     }).collect(Collectors.toList());
+	 }
 
     // ══════════════════════════════════════════════════════════════
     // SOUMISSION AUTOMATIQUE (interne)
