@@ -109,12 +109,19 @@ public class ExamenEtudiantService {
             throw new RuntimeException("Cet examen a déjà été soumis.");
         }
 
+        // ── NOUVEAU : vérifier si le temps est écoulé ──────────────
+        if (passage.estExpire()) {
+            // Soumettre automatiquement avec ce qui a été saisi, puis rejeter
+            soumettreAutomatiquement(passage);
+            throw new RuntimeException("⏰ Temps écoulé ! L'examen a été soumis automatiquement avec vos réponses actuelles.");
+        }
+        // ───────────────────────────────────────────────────────────
+
         // Enregistrer les réponses
         for (SoumissionExamenRequest.ReponseItem item : request.getReponses()) {
             QuestionExamen question = questionRepository.findById(item.getQuestionId())
                     .orElseThrow(() -> new RuntimeException("Question introuvable : " + item.getQuestionId()));
 
-            // Éviter les doublons
             if (reponseRepository.findByPassageIdAndQuestionId(passageId, question.getId()).isPresent()) {
                 continue;
             }
@@ -123,7 +130,7 @@ public class ExamenEtudiantService {
             reponse.setPassage(passage);
             reponse.setQuestion(question);
             reponse.setReponseTexte(item.getReponseTexte());
-            reponse.setEstJuste(null); // à corriger par le prof
+            reponse.setEstJuste(null);
             reponse.setPointsObtenus(0);
             reponseRepository.save(reponse);
         }
