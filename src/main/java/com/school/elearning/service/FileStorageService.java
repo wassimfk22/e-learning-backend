@@ -97,6 +97,42 @@ public class FileStorageService {
         return nomFichier.substring(nomFichier.lastIndexOf('.') + 1);
     }
     
+    /**
+     * Sauvegarde un fichier de communauté (image ou PDF).
+     * Répertoire : uploads/communaute/
+     * Retourne le chemin relatif exposé via HTTP.
+     */
+    public String sauvegarderFichierCommunaute(MultipartFile fichier, Long etudiantId) {
+        if (fichier == null || fichier.isEmpty()) {
+            throw new RuntimeException("Le fichier est vide");
+        }
+        if (fichier.getSize() > TAILLE_MAX_OCTETS) {
+            throw new RuntimeException("Fichier trop lourd (max 5 Mo)");
+        }
+     
+        String extension = getExtension(fichier.getOriginalFilename());
+        List<String> extAutorisees = List.of("jpg", "jpeg", "png", "webp", "pdf");
+        if (!extAutorisees.contains(extension.toLowerCase())) {
+            throw new RuntimeException("Format non autorisé : " + extension);
+        }
+     
+        try {
+            Path dossier = Paths.get("uploads/communaute").toAbsolutePath().normalize();
+            Files.createDirectories(dossier);
+     
+            String nomFichier = "communaute_" + etudiantId + "_"
+                    + UUID.randomUUID().toString().substring(0, 8)
+                    + "." + extension;
+     
+            Path destination = dossier.resolve(nomFichier);
+            Files.copy(fichier.getInputStream(), destination, StandardCopyOption.REPLACE_EXISTING);
+     
+            return "/uploads/communaute/" + nomFichier;
+        } catch (IOException e) {
+            throw new RuntimeException("Échec de l'enregistrement du fichier : " + e.getMessage());
+        }
+    }
+    
     
     
 }

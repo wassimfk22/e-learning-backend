@@ -99,6 +99,10 @@ public class SecurityConfig {
                 .requestMatchers("/api/etudiant/**").hasRole("ETUDIANT")
                 .requestMatchers("/api/progression/**").hasRole("ETUDIANT")
                 
+                // Pour les routes de la communauté
+                .requestMatchers("/api/communaute/**").hasRole("ETUDIANT")
+                .requestMatchers("/uploads/communaute/**").permitAll()
+                
                 // ══════════════════════════════════════════════════════
                 // ANNONCES
                 // ══════════════════════════════════════════════════════
