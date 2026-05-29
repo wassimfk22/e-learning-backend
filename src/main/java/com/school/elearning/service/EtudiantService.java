@@ -2,8 +2,10 @@ package com.school.elearning.service;
 
 import com.school.elearning.dto.EtudiantRequest;
 import com.school.elearning.dto.UtilisateurResponse;
+import com.school.elearning.model.BoiteReception;
 import com.school.elearning.model.Etudiant;
 import com.school.elearning.model.Niveau;
+import com.school.elearning.model.Utilisateur;
 import com.school.elearning.model.enums.Role;
 import com.school.elearning.repository.EtudiantRepository;
 import com.school.elearning.repository.NiveauRepository;
@@ -66,6 +68,9 @@ public class EtudiantService {
                 etudiant.setCommunaute(niveau.getCommunaute());
             }
         }
+        
+        // AUTOMATISATION
+        initialiserBoiteReception(etudiant);
 
         return toResponse(etudiantRepository.save(etudiant));
     }
@@ -169,4 +174,14 @@ public class EtudiantService {
         }
         return r;
     }
+    
+    // À ajouter dans les HELPERS en bas de UtilisateurService.java
+    public void initialiserBoiteReception(Utilisateur u) {
+        BoiteReception boite = new BoiteReception();
+        boite.setDateCreation(new Date()); // On initialise la date ici
+        // Liaison bidirectionnelle
+        boite.setUtilisateur(u);
+        u.setBoiteReception(boite);
+    }
+    
 }

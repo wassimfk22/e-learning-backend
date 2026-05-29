@@ -106,11 +106,35 @@ public class SecurityConfig {
                 // ══════════════════════════════════════════════════════
                 // ANNONCES
                 // ══════════════════════════════════════════════════════
-                .requestMatchers(HttpMethod.GET,  "/api/annonces/**").authenticated()
-                .requestMatchers(HttpMethod.POST, "/api/annonces/**").hasAnyRole("ADMIN", "MODERATEUR")
+                // Annonces
+	             .requestMatchers(HttpMethod.GET,    "/api/annonces/**").authenticated()
+	             .requestMatchers(HttpMethod.POST,   "/api/annonces/**").hasAnyRole("ADMIN", "MODERATEUR")
+	             .requestMatchers(HttpMethod.PUT,    "/api/annonces/**").hasAnyRole("ADMIN", "MODERATEUR")
+	             .requestMatchers(HttpMethod.DELETE, "/api/annonces/**").hasAnyRole("ADMIN", "MODERATEUR")
+	             
+	            //══════════════════════════════════════════════════════
+	            // PROGRESSION
+	            // ══════════════════════════════════════════════════════
+	             .requestMatchers(HttpMethod.GET,  "/api/progression/ma-progression").hasRole("ETUDIANT")
+	             .requestMatchers(HttpMethod.POST, "/api/progression/inscrire/**").hasRole("ETUDIANT")
+	             .requestMatchers(HttpMethod.GET,  "/api/progression/etudiant/**")
+	                 .hasAnyRole("ADMIN", "MODERATEUR", "ENSEIGNANT")
+	             .requestMatchers(HttpMethod.GET,  "/api/progression/module/**")
+	                 .hasAnyRole("ADMIN", "MODERATEUR", "ENSEIGNANT")
+	             .requestMatchers(HttpMethod.GET,  "/api/progression/niveau/**")
+	                 .hasAnyRole("ADMIN", "MODERATEUR")
+	              
+	             // Questions pédagogiques
+	              .requestMatchers("/api/questions-pedagogiques/**").authenticated()
+	              
+	             // Notifications
+	              .requestMatchers("/api/notifications/**").authenticated()
+	              
+	             // Boite de réception
+	              .requestMatchers("/api/boite-reception/**").authenticated()
 
                 // ── Tout le reste : authentifié ────────────────────────
-                .anyRequest().authenticated()
+                 .anyRequest().authenticated()
             )
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 

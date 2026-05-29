@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -20,6 +21,8 @@ public class QuizService {
     private final QuizRepository quizRepository;
     private final CoursRepository coursRepository;
     private final EnseignantRepository enseignantRepository;
+    private final GroqQuizService groqQuizService;
+    private final FileTextExtractorService fileTextExtractorService;
 
     // ── CRÉER ────────────────────────────────────────────────────────
 
@@ -64,6 +67,46 @@ public class QuizService {
             q.setPoints(req.getPoints());
             q.setQuiz(quiz);
             return q;
+        }).collect(Collectors.toList());
+
+        quiz.setQuestions(questions);
+        return toDetailEnseignantResponse(quizRepository.save(quiz));
+    }
+    
+    @Transactional
+    public QuizDetailEnseignantResponse creerQuizDepuisFichier(String titre, Integer dureeMinutes,
+                                                                Long coursId, MultipartFile fichier,
+                                                                Authentication auth) throws java.io.IOException {
+        Enseignant enseignant = getEnseignantConnecte(auth);
+        Cours cours = coursRepository.findById(coursId)
+                .orElseThrow(() -> new RuntimeException("Cours introuvable : " + coursId));
+
+        if (!cours.getModule().getEnseignant().getId().equals(enseignant.getId())) {
+            throw new RuntimeException("Accès refusé : ce cours ne vous appartient pas");
+        }
+
+        String texte = fileTextExtractorService.extraireTexte(fichier);
+        if (texte == null || texte.isBlank()) {
+            throw new RuntimeException("Le fichier est vide ou illisible");
+        }
+
+        List<GroqQuizService.QuizQuestionIA> questionsIA = groqQuizService.genererQuestionsDepuisTexte(texte, 5);
+
+        Quiz quiz = new Quiz();
+        quiz.setTitre(titre);
+        quiz.setDureeMinutes(dureeMinutes != null ? dureeMinutes : 30);
+        quiz.setNombreQuestions(questionsIA.size());
+        quiz.setCours(cours);
+        quiz.setModule(cours.getModule());
+
+        List<QuestionQuiz> questions = questionsIA.stream().map(q -> {
+            QuestionQuiz qq = new QuestionQuiz();
+            qq.setEnonce(q.enonce());
+            qq.setChoixPossibles(q.choixPossibles());
+            qq.setBonneReponse(q.bonneReponse());
+            qq.setPoints(q.points() > 0 ? q.points() : 2.0);
+            qq.setQuiz(quiz);
+            return qq;
         }).collect(Collectors.toList());
 
         quiz.setQuestions(questions);

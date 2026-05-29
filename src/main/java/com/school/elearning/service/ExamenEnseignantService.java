@@ -27,6 +27,7 @@ public class ExamenEnseignantService {
     private final ModuleRepository moduleRepository;
     private final ResultatRepository resultatRepository;
     private final ProgressionModuleRepository progressionRepository;
+    private final ProgressionCalculatorService calculatorService;
 
     // ══════════════════════════════════════════════════════════════
     // 1. CRÉER UN EXAMEN
@@ -221,7 +222,6 @@ public class ExamenEnseignantService {
         Etudiant etudiant = passage.getEtudiant();
         Module module = passage.getExamen().getModule();
 
-        // Récupérer ou créer le Resultat
         Resultat resultat = resultatRepository
                 .findByEtudiantIdAndModuleId(etudiant.getId(), module.getId())
                 .orElseGet(() -> {
@@ -234,7 +234,6 @@ public class ExamenEnseignantService {
                     return resultatRepository.save(r);
                 });
 
-        // Recalculer moyenne des examens corrigés pour ce module
         List<PassageExamen> examensCoriges = passageRepository
                 .findCorigesParModuleId(etudiant, module.getId());
 
@@ -247,18 +246,8 @@ public class ExamenEnseignantService {
         resultat.setMoyenneGenerale((resultat.getMoyenneQuizs() + nouvelleMoyenne) / 2);
         resultatRepository.save(resultat);
 
-        // Mettre à jour la progression du module
-        progressionRepository.findByEtudiant(etudiant).stream()
-                .filter(p -> p.getModule().getId().equals(module.getId()))
-                .findFirst()
-                .ifPresent(progression -> {
-                    // On boost légèrement la complétion si l'examen est corrigé
-                    if (progression.getPourcentageCompletude() < 100f) {
-                        float actuel = progression.getPourcentageCompletude();
-                        progression.setPourcentageCompletude(Math.min(100f, actuel + 10f));
-                    }
-                    progressionRepository.save(progression);
-                });
+        // RECALCUL AUTOMATIQUE centralisé
+        calculatorService.recalculerEtSauvegarder(etudiant, module);
     }
 
     // ══════════════════════════════════════════════════════════════

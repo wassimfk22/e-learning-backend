@@ -21,6 +21,8 @@ public class CommunauteController {
         return ResponseEntity.ok(communauteService.associerANiveau(auth, niveauId));
     }
     
+    // LISTER TOUTES LES COMM D'UN MODERATEUR
+    
     
     
 }

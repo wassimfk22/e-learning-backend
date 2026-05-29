@@ -2,10 +2,14 @@ package com.school.elearning.controller;
 
 import com.school.elearning.dto.EtudiantRequest;
 import com.school.elearning.dto.UtilisateurResponse;
+import com.school.elearning.model.Utilisateur;
+import com.school.elearning.repository.UtilisateurRepository;
 import com.school.elearning.service.EtudiantService;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -14,6 +18,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
  * ╔══════════════════════════════════════════════════════╗
@@ -36,6 +41,7 @@ import java.util.List;
 public class ModerationController {
 
     private final EtudiantService etudiantService;
+    private final UtilisateurRepository utilisateurRepository;
 
     // ── GET ALL ─────────────────────────────────────────
     @GetMapping("/etudiants")
@@ -93,6 +99,19 @@ public class ModerationController {
 	         @PathVariable Long id,
 	         @PathVariable Long niveauId) {
 	     return ResponseEntity.ok(etudiantService.affecterNiveau(id, niveauId));
+	 }
+	 
+	 @PostMapping ("/boite/{idUser}")
+	 public ResponseEntity <String> initialiserBoiteReception ( @PathVariable Long idUser ){
+		 Optional <Utilisateur> u = this.utilisateurRepository.findById(idUser);
+		 if ( u.isPresent() ) {
+			 Utilisateur user = u.get();
+			 this.etudiantService.initialiserBoiteReception(user);
+			 this.utilisateurRepository.save(user);
+			 return new ResponseEntity<String>("Boite de réception créée avec succés !", HttpStatus.OK);
+		 } else {
+			 return new ResponseEntity<String>("Introuvable !", HttpStatus.NOT_FOUND);
+		 }
 	 }
     
 }

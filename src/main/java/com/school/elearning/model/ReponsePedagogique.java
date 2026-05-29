@@ -7,18 +7,23 @@ import java.util.Date;
 @Entity @Table(name = "reponses_pedagogiques")
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor
 public class ReponsePedagogique {
+
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(columnDefinition = "TEXT")
+    @Column(columnDefinition = "TEXT", nullable = false)
     private String contenu;
 
     @Temporal(TemporalType.TIMESTAMP)
     private Date dateReponse;
 
-    @ManyToOne @JoinColumn(name = "enseignant_id")
+    @ManyToOne
+    @JoinColumn(name = "enseignant_id")
     private Enseignant enseignant;
 
-    @ManyToOne @JoinColumn(name = "question_pedagogique_id")
+    // Lien vers la question à laquelle on répond
+    @OneToOne
+    @JoinColumn(name = "question_pedagogique_id")
     private QuestionPedagogique questionPedagogique;
+    
 }

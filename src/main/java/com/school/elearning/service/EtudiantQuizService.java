@@ -34,6 +34,7 @@ public class EtudiantQuizService {
     private final ExamenEnseignantService examenEnseignantService;
     private final CoursEtudiantService coursEtudiantService;
     private final ExamenModuleRepository examenModuleRepository;
+    private final ProgressionCalculatorService calculatorService;
 
     // ══════════════════════════════════════════════════════════════
     // 1. LISTER LES QUIZ D'UN COURS
@@ -293,7 +294,7 @@ public class EtudiantQuizService {
 
         // ── 5. Calcul de la progressionGlobale ────────────────────────
         // On calcule par module pour être précis, puis on moyenne
-        float progressionGlobale = calculerProgressionGlobale(etudiant, progressionModules);
+        float progressionGlobale = calculatorService.calculerProgressionGlobale(etudiant);
 
         // ── 6. Derniers quiz ──────────────────────────────────────────
         List<TentativeResponse> derniersQuizzes = tentativeRepository
@@ -332,113 +333,6 @@ public class EtudiantQuizService {
     }
 
     // ══════════════════════════════════════════════════════════════
-    // CALCUL PROGRESSION GLOBALE
-    // Pour chaque module inscrit :
-    //   - % cours terminés
-    //   - % quiz soumis (du module)
-    //   - % examens corrigés (du module)
-    // Moyenne de ces 3 composantes par module, puis moyenne des modules
-    // ══════════════════════════════════════════════════════════════
-
-    private float calculerProgressionGlobale(Etudiant etudiant, List<ProgressionModule> progressionModules) {
-        if (progressionModules.isEmpty()) {
-            // Fallback : on regarde juste les cours/quiz globaux
-            return calculerProgressionFallback(etudiant);
-        }
-
-        float totalProgression = 0f;
-        int nbModulesAvecDonnees = 0;
-
-        for (ProgressionModule pm : progressionModules) {
-            Module module = pm.getModule();
-            float progressionModule = calculerProgressionDuModule(etudiant, module);
-            totalProgression += progressionModule;
-            nbModulesAvecDonnees++;
-        }
-
-        return nbModulesAvecDonnees > 0 ? totalProgression / nbModulesAvecDonnees : 0f;
-    }
-
-    private float calculerProgressionDuModule(Etudiant etudiant, Module module) {
-        float totalComposantes = 0f;
-        int nbComposantes = 0;
-
-        // Composante 1 : Cours terminés
-        long totalCours = module.getCours() != null ? module.getCours().size() : 0;
-        if (totalCours > 0) {
-            long coursTermines = coursProgressionRepository
-                    .findTerminesParModuleId(etudiant, module.getId()).size();
-            float pctCours = (float) coursTermines / totalCours * 100f;
-            totalComposantes += pctCours;
-            nbComposantes++;
-        }
-
-        // Composante 2 : Quiz soumis du module
-        List<TentativeQuiz> tentativesModule = tentativeRepository
-                .findByEtudiantAndModuleId(etudiant, module.getId());
-        long totalQuizModule = module.getCours() != null
-                ? module.getCours().stream()
-                        .flatMap(c -> c.getQuizzes() != null ? c.getQuizzes().stream() : java.util.stream.Stream.empty())
-                        .count()
-                : 0;
-        if (totalQuizModule > 0) {
-            long quizSoumisModule = tentativesModule.stream()
-                    .filter(t -> t.getStatut() == StatutTentative.SOUMISE).count();
-            float pctQuiz = (float) quizSoumisModule / totalQuizModule * 100f;
-            totalComposantes += pctQuiz;
-            nbComposantes++;
-        }
-
-        // Composante 3 : Examens corrigés du module
-        List<PassageExamen> examensModule = passageExamenRepository
-                .findCorigesParModuleId(etudiant, module.getId());
-        // Total examens du module — on passe par le repo pour éviter le problème
-        // d'instanciation de la classe abstraite Evaluation
-        long totalExamensModule = examenModuleRepository.findByModuleId(module.getId()).size();
-        if (totalExamensModule > 0) {
-            long examensCorrigesModule = examensModule.size();
-            float pctExamens = (float) examensCorrigesModule / totalExamensModule * 100f;
-            // Bonus : si corrigé, utiliser la note moyenne ramenée sur 100
-            if (!examensModule.isEmpty()) {
-                float noteMoyenne = (float) examensModule.stream()
-                        .mapToDouble(p -> p.getNoteFinale() / 20.0 * 100.0)
-                        .average().orElse(0);
-                pctExamens = noteMoyenne;
-            }
-            totalComposantes += pctExamens;
-            nbComposantes++;
-        }
-
-        return nbComposantes > 0 ? totalComposantes / nbComposantes : 0f;
-    }
-
-    private float calculerProgressionFallback(Etudiant etudiant) {
-        // Utilisé quand l'étudiant n'a aucune ProgressionModule (ancien comportement)
-        List<CoursProgression> toutesCP = coursProgressionRepository.findByEtudiant(etudiant);
-        long totalCours = toutesCP.size();
-        long coursTermines = toutesCP.stream()
-                .filter(cp -> cp.getStatut() == StatutCoursProgression.TERMINE).count();
-        float pctCours = totalCours > 0 ? (float) coursTermines / totalCours * 100f : 0f;
-
-        List<TentativeQuiz> toutesT = tentativeRepository.findByEtudiantOrderByDateDebutDesc(etudiant);
-        long totalQuiz = toutesT.size();
-        long quizSoumis = toutesT.stream()
-                .filter(t -> t.getStatut() == StatutTentative.SOUMISE).count();
-        float pctQuiz = totalQuiz > 0 ? (float) quizSoumis / totalQuiz * 100f : 0f;
-
-        List<PassageExamen> examensCoriges = passageExamenRepository
-                .findTop5ByEtudiantOrderByDateDebutDesc(etudiant).stream()
-                .filter(p -> p.getStatut() == StatutPassageExamen.CORRIGE)
-                .collect(Collectors.toList());
-        float pctExamens = examensCoriges.isEmpty() ? 0f : (float) examensCoriges.stream()
-                .mapToDouble(p -> p.getNoteFinale() / 20.0 * 100.0)
-                .average().orElse(0);
-
-        int nbC = (totalCours > 0 ? 1 : 0) + (totalQuiz > 0 ? 1 : 0) + (!examensCoriges.isEmpty() ? 1 : 0);
-        return nbC > 0 ? (pctCours + pctQuiz + pctExamens) / nbC : 0f;
-    }
-
-    // ══════════════════════════════════════════════════════════════
     // SOUMISSION AUTOMATIQUE (interne)
     // ══════════════════════════════════════════════════════════════
 
@@ -468,9 +362,10 @@ public class EtudiantQuizService {
         Etudiant etudiant = tentative.getEtudiant();
         Module module = tentative.getQuiz().getCours().getModule();
 
-        // S'assurer que l'inscription au module existe
+        // Auto-inscription si nécessaire
         coursEtudiantService.autoInscrireAuModule(etudiant, module);
 
+        // Mise à jour du Resultat
         double scoreMax = tentative.getScoreMax();
         float noteSur20 = scoreMax > 0
                 ? (float) Math.round((tentative.getScoreObtenu() / scoreMax) * 20 * 100) / 100f
@@ -508,31 +403,8 @@ public class EtudiantQuizService {
         resultat.setMoyenneGenerale((nouvelleMoyenne + resultat.getMoyenneExamens()) / 2);
         resultatRepository.save(resultat);
 
-        // Mettre à jour la ProgressionModule (composante quiz)
-        progressionRepository.findByEtudiant(etudiant).stream()
-                .filter(p -> p.getModule().getId().equals(module.getId()))
-                .findFirst()
-                .ifPresent(progression -> {
-                    long totalQuizzes = module.getCours().stream()
-                            .flatMap(c -> c.getQuizzes() != null ? c.getQuizzes().stream() : java.util.stream.Stream.empty())
-                            .count();
-                    long quizzesSoumis = tentativesModule.stream()
-                            .filter(t -> t.getStatut() == StatutTentative.SOUMISE).count();
-
-                    if (totalQuizzes > 0) {
-                        float completudeQuiz = (float) quizzesSoumis / totalQuizzes * 100f;
-                        // Combine avec la progression cours déjà calculée
-                        float actuel = progression.getPourcentageCompletude();
-                        progression.setPourcentageCompletude(Math.max(actuel, completudeQuiz));
-                    }
-
-                    if (progression.getPourcentageCompletude() >= 100f) {
-                        progression.setStatut(StatutProgression.TERMINE);
-                    } else if (progression.getStatut() == StatutProgression.NON_COMMENCE) {
-                        progression.setStatut(StatutProgression.EN_COURS);
-                    }
-                    progressionRepository.save(progression);
-                });
+        // RECALCUL AUTOMATIQUE centralisé
+        calculatorService.recalculerEtSauvegarder(etudiant, module);
     }
 
     // ══════════════════════════════════════════════════════════════

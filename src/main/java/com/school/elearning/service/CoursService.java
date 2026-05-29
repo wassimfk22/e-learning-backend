@@ -6,6 +6,7 @@ import com.school.elearning.dto.CoursResponse;
 import com.school.elearning.dto.CoursMapper;
 import com.school.elearning.model.*;
 import com.school.elearning.model.Module;
+import com.school.elearning.model.enums.TypeContent;
 import com.school.elearning.repository.*;
 import com.school.elearning.security.CustomUserDetails;
 import lombok.RequiredArgsConstructor;
@@ -29,7 +30,7 @@ public class CoursService {
     private final ModuleRepository moduleRepository;
     private final EnseignantRepository enseignantRepository;
     private final FileTextExtractorService fileTextExtractorService;
-    private final AiCoursGeneratorService aiCoursGeneratorService;
+    private final GroqCoursService groqCoursService;
 
     // ───────────────────────────────────────────
     // READ
@@ -186,36 +187,25 @@ public class CoursService {
             throw new RuntimeException("Ce module ne vous appartient pas");
         }
 
-        // 1. Extraire le texte du fichier
         String texteExtrait = fileTextExtractorService.extraireTexte(fichier);
-
         if (texteExtrait == null || texteExtrait.isBlank()) {
             throw new RuntimeException("Le fichier est vide ou illisible");
         }
 
-        // 2. Envoyer à GPT et récupérer les contenus générés
-        List<AiCoursGeneratorService.AiContentItem> itemsGeneres =
-                aiCoursGeneratorService.genererContenuDepuisTexte(texteExtrait);
+        String contenuGenere = groqCoursService.genererCoursDepuisTexte(texteExtrait);
 
-        // 3. Créer le cours
         Cours cours = new Cours();
         cours.setTitre(titre);
         cours.setModule(module);
         cours.setDatePublication(new Date());
 
-        // 4. Construire les contents dans l'ordre généré par GPT
-        List<Content> contents = new ArrayList<>();
-        for (int i = 0; i < itemsGeneres.size(); i++) {
-            AiCoursGeneratorService.AiContentItem item = itemsGeneres.get(i);
-            Content content = new Content();
-            content.setType(item.type());
-            content.setContent(item.content());
-            content.setOrdre(i + 1);
-            content.setCours(cours);
-            contents.add(content);
-        }
+        Content content = new Content();
+        content.setType(TypeContent.TEXT);
+        content.setContent(contenuGenere);
+        content.setOrdre(1);
+        content.setCours(cours);
 
-        cours.setContents(contents);
+        cours.setContents(List.of(content));
         return CoursMapper.toResponse(coursRepository.save(cours));
     }
     

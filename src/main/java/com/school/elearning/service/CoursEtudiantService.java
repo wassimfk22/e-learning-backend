@@ -28,6 +28,7 @@ public class CoursEtudiantService {
     private final CoursProgressionRepository coursProgressionRepository;
     private final ProgressionModuleRepository progressionModuleRepository;
     private final ModuleRepository moduleRepository;
+    private final ProgressionCalculatorService calculatorService;
 
     // ══════════════════════════════════════════════════════════════
     // 1. ACCÉDER À UN COURS
@@ -135,8 +136,7 @@ public class CoursEtudiantService {
 
     @Transactional
     public void autoInscrireAuModule(Etudiant etudiant, Module module) {
-        boolean dejaInscrit = progressionModuleRepository.existsByEtudiantAndModule(etudiant, module);
-        if (!dejaInscrit) {
+        if (!progressionModuleRepository.existsByEtudiantAndModule(etudiant, module)) {
             ProgressionModule progression = new ProgressionModule();
             progression.setEtudiant(etudiant);
             progression.setModule(module);
@@ -153,32 +153,8 @@ public class CoursEtudiantService {
 
     @Transactional
     public void mettreAJourProgressionModule(Etudiant etudiant, Module module) {
-        // S'assurer que l'inscription existe
         autoInscrireAuModule(etudiant, module);
-
-        progressionModuleRepository.findByEtudiant(etudiant).stream()
-                .filter(p -> p.getModule().getId().equals(module.getId()))
-                .findFirst()
-                .ifPresent(progression -> {
-                    long totalCours = module.getCours() != null ? module.getCours().size() : 0;
-                    if (totalCours == 0) return;
-
-                    long coursTermines = coursProgressionRepository
-                            .findTerminesParModuleId(etudiant, module.getId()).size();
-
-                    float completudeCours = (float) coursTermines / totalCours * 100f;
-
-                    // On prend le max pour ne pas réduire si quiz/examens ont déjà avancé
-                    progression.setPourcentageCompletude(
-                            Math.max(progression.getPourcentageCompletude(), completudeCours));
-
-                    if (completudeCours >= 100f) {
-                        progression.setStatut(StatutProgression.TERMINE);
-                    } else if (progression.getStatut() == StatutProgression.NON_COMMENCE) {
-                        progression.setStatut(StatutProgression.EN_COURS);
-                    }
-                    progressionModuleRepository.save(progression);
-                });
+        calculatorService.recalculerEtSauvegarder(etudiant, module);
     }
 
     // ══════════════════════════════════════════════════════════════
