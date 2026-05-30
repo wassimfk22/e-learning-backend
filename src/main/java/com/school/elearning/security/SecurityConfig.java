@@ -97,7 +97,7 @@ public class SecurityConfig {
                  
                 // Étudiant : quiz, cours, examens, progression
                 .requestMatchers("/api/etudiant/**").hasRole("ETUDIANT")
-                .requestMatchers("/api/progression/**").hasRole("ETUDIANT")
+//                .requestMatchers("/api/progression/**").hasRole("ETUDIANT")
                 
                 // Pour les routes de la communauté
                 .requestMatchers("/api/communaute/**").hasRole("ETUDIANT")
@@ -123,7 +123,7 @@ public class SecurityConfig {
 	                 .hasAnyRole("ADMIN", "MODERATEUR", "ENSEIGNANT")
 	             .requestMatchers(HttpMethod.GET,  "/api/progression/niveau/**")
 	                 .hasAnyRole("ADMIN", "MODERATEUR")
-	              
+	                 
 	             // Questions pédagogiques
 	              .requestMatchers("/api/questions-pedagogiques/**").authenticated()
 	              

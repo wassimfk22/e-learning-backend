@@ -20,7 +20,7 @@ import java.util.List;
  * ╚══════════════════════════════════════════════════════════════╝
  */
 @RestController
-@RequestMapping("/api/admin/progressions")
+@RequestMapping("/api/progressions")
 @PreAuthorize("hasAnyRole('ADMIN', 'MODERATEUR', 'ENSEIGNANT')")
 @RequiredArgsConstructor
 public class ProgressionAdminController {
