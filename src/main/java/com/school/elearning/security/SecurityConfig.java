@@ -124,6 +124,14 @@ public class SecurityConfig {
 	             .requestMatchers(HttpMethod.GET,  "/api/progression/niveau/**")
 	                 .hasAnyRole("ADMIN", "MODERATEUR")
 	                 
+	              // ══════════════════════════════════════════════════════
+	              // CALENDRIER
+	              // ══════════════════════════════════════════════════════
+	              .requestMatchers(HttpMethod.GET,    "/api/calendrier/**").authenticated()
+	              .requestMatchers(HttpMethod.POST,   "/api/calendrier/evenements/**").hasAnyRole("ADMIN", "MODERATEUR")
+	              .requestMatchers(HttpMethod.PUT,    "/api/calendrier/evenements/**").hasAnyRole("ADMIN", "MODERATEUR")
+	              .requestMatchers(HttpMethod.DELETE, "/api/calendrier/evenements/**").hasAnyRole("ADMIN", "MODERATEUR")
+	                 
 	             // Questions pédagogiques
 	              .requestMatchers("/api/questions-pedagogiques/**").authenticated()
 	              
